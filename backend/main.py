@@ -38,6 +38,7 @@ import providers
 import writing
 import presets
 import readiness
+import access
 
 app = FastAPI(title="SEO 矩阵平台（对标 ALPP · 百度全量测试中）")
 
@@ -45,6 +46,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
+
+# 访问门禁：线上带 access.txt 才启用，本地没有该文件则完全不拦
+app.add_middleware(access.GateMiddleware)
+access.setup(app)
 
 # 启动时迁移老配置：DeepSeek 的 deepseek-chat / deepseek-reasoner 已被官方停用
 models.migrate()

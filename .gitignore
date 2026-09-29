@@ -10,6 +10,8 @@ backend/.env
 .env
 .env.local
 *.env.local
+# 线上版的访问密码：本地创建、随部署上传，但不进 GitHub
+backend/access.txt
 
 # ---------- ② 运行时数据（你写出来的文章、关键词等）----------
 # data/ 目录里是「使用过程中产生的数据」：文章、推送记录、账号配置……
