@@ -1,4 +1,21 @@
+# ============================================
+#  backend/requirements.txt
+#  安装：pip install -r backend/requirements.txt
+# ============================================
+
+# ---------- 服务本体（必需）----------
 fastapi
 uvicorn[standard]
 httpx
 python-dotenv
+
+# ---------- Markdown 转 HTML（必需）----------
+# articles.py 用它把文章导出成 SEO 静态页，属于顶层依赖，缺了服务直接起不来。
+markdown
+
+# ---------- 知识库文件导入（可选）----------
+# 只影响「导入 PDF / Word / Excel 文件到知识库」这一个功能；
+# 不装也能正常跑，只是导入这几种格式时会提示缺少依赖。
+pypdf
+python-docx
+openpyxl
