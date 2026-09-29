@@ -673,3 +673,12 @@ def api_push_log():
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
+
+# ---------- 直接用 python main.py 启动时的入口 ----------
+# 部署到云端时，平台会注入 PORT 环境变量并要求监听 0.0.0.0；
+# 本地手动跑则默认 8020。原来的 uvicorn 命令行启动方式不受影响。
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app,
+                host=os.getenv("HOST", "0.0.0.0"),
+                port=int(os.getenv("PORT", "8020")))
