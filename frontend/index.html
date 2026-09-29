@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEO 矩阵平台 · 多平台内容自动化</title>
+<script>
+  // 主题提前应用：在 Vue 启动前就把 html 的 data-theme 定下来，避免深色模式下闪白
+  (function () {
+    try {
+      var m = localStorage.getItem('seo-theme') || 'auto';
+      var dark = m === 'dark' || (m === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    } catch (e) { /* 隐私模式下 localStorage 不可用，忽略 */ }
+  })();
+</script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+  /* ============ 主题变量 · 浅色（默认）============ */
+  :root{
+    --brand:#6366f1; --brand-d:#4f46e5; --brand-soft:#eef0ff; --brand-line:#d9dcfc;
+    --brand-text:#4f46e5; --brand-ring:rgba(99,102,241,.16);
+    --bg:#f7f7fb; --surface:#ffffff; --surface-2:#fbfbfd; --surface-3:#f2f3f8;
+    --line:#e8e8f0; --line-strong:#d9dae6;
+    --t1:#1c1c28; --t2:#55566b; --t3:#8d8fa3;
+    --green:#10b981; --amber:#f59e0b; --red:#ef4444; --purple:#8b5cf6; --cyan:#06b6d4;
+    --nav-bg:#ffffff; --nav-text:#5f6076; --nav-hover:#f4f4f9;
+    --nav-active-bg:#eef0ff; --nav-active-text:#4f46e5; --nav-group:#9a9cb0;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(28,28,60,.04), 0 6px 18px rgba(28,28,60,.055);
+    --shadow-h:0 2px 8px rgba(28,28,60,.07), 0 16px 36px rgba(28,28,60,.10);
+    --btn-shadow:0 2px 6px rgba(99,102,241,.3);
+    --btn-shadow-h:0 4px 14px rgba(99,102,241,.38);
+    --overlay:rgba(28,28,60,.42); --mark:#ffe58f;
+  }
+  /* ============ 主题变量 · 深色（系统偏好或手动切换）============ */
+  [data-theme="dark"]{
+    --brand:#818cf8; --brand-d:#a5b4fc; --brand-soft:#252a4a; --brand-line:#3a3f6b;
+    --brand-text:#a5b4fc; --brand-ring:rgba(129,140,248,.22);
+    --bg:#0e0f17; --surface:#171923; --surface-2:#1b1e2a; --surface-3:#222634;
+    --line:#272a38; --line-strong:#363a4d;
+    --t1:#eef0f6; --t2:#b6bac9; --t3:#868ba2;
+    --nav-bg:#14151f; --nav-text:#a2a6ba; --nav-hover:#1e2130;
+    --nav-active-bg:#252a4a; --nav-active-text:#a5b4fc; --nav-group:#7b8098;
+    --shadow:0 1px 2px rgba(0,0,0,.32), 0 8px 22px rgba(0,0,0,.3);
+    --shadow-h:0 2px 10px rgba(0,0,0,.36), 0 18px 40px rgba(0,0,0,.42);
+    --btn-shadow:0 2px 8px rgba(99,102,241,.42);
+    --btn-shadow-h:0 4px 16px rgba(99,102,241,.5);
+    --overlay:rgba(0,0,0,.6); --mark:#7c6113;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+       background:var(--bg); color:var(--t1); font-size:15px; line-height:1.6;
+       -webkit-font-smoothing:antialiased; transition:background .18s, color .18s;}
+  [v-cloak]{display:none;}
+  .layout{display:flex; min-height:100vh;}
+  /* ---------- 侧栏（浅色 · 方案 A）---------- */
+  .sidebar{width:258px; flex:0 0 258px; background:var(--nav-bg); color:var(--nav-text);
+           display:flex; flex-direction:column; overflow-y:auto; height:100vh; position:sticky; top:0;
+           padding-bottom:24px; border-right:1px solid var(--line); transition:background .18s;}
+  .sidebar::-webkit-scrollbar{width:6px;}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--line-strong); border-radius:4px;}
+  .logo{padding:24px 20px 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line);}
+  .logo-mark{width:36px; height:36px; flex:0 0 36px; border-radius:11px;
+             background:linear-gradient(135deg,var(--brand),var(--purple));
+             color:#fff; font-size:17px; font-weight:700; display:flex; align-items:center; justify-content:center;
+             box-shadow:0 4px 12px var(--btn-shadow); letter-spacing:-.5px;}
+  .logo-txt{font-size:16px; font-weight:650; color:var(--t1); letter-spacing:.3px; line-height:1.25;}
+  .logo-txt small{display:block; font-size:12px; color:var(--t3); font-weight:400; margin-top:4px; letter-spacing:.2px;}
+  .nav-item{display:flex; align-items:center; gap:11px; margin:2px 12px; padding:10px 13px; border-radius:9px;
+            cursor:pointer; font-size:14px; color:var(--nav-text); transition:.16s; line-height:1.45;}
+  .nav-item:hover{background:var(--nav-hover); color:var(--t1);}
+  .nav-item.active{background:var(--nav-active-bg); color:var(--nav-active-text); font-weight:600;}
+  .nav-item .badge{margin-left:auto; background:var(--brand-soft); color:var(--brand-text); font-size:11.5px;
+                   font-weight:600; padding:2px 9px; border-radius:20px;}
+  .nav-item.active .badge{background:var(--brand); color:#fff;}
+  .nav-icon{width:20px; height:20px; flex:0 0 20px; display:flex; align-items:center; justify-content:center; font-size:15px; line-height:1;}
+  .nav-group{margin:18px 12px 6px; padding:7px 13px; font-size:12.5px; font-weight:600; color:var(--nav-group);
+             letter-spacing:.8px; display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+             border-radius:8px; transition:.16s;}
+  .nav-group::before{content:""; width:3px; height:11px; border-radius:2px; background:var(--line-strong); transition:.16s;}
+  .nav-group:hover{background:var(--nav-hover); color:var(--t2);}
+  .nav-group.open{color:var(--brand-text);}
+  .nav-group.open::before{background:var(--brand);}
+  .nav-group .arrow{margin-left:auto; width:6.5px; height:6.5px; border-right:1.7px solid currentColor;
+                    border-bottom:1.7px solid currentColor; border-radius:1px; opacity:.8;
+                    transform:rotate(-45deg); transition:transform .22s;}
+  .nav-group.open .arrow{transform:rotate(45deg);}
+  .nav-sub{margin-left:20px; padding-left:13px; font-size:13.5px;}
+  /* ---------- 主体 ---------- */
+  .main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg);}
+  .topbar{background:var(--surface); padding:13px 30px; border-bottom:1px solid var(--line); display:flex; gap:8px;
+          align-items:center; flex-wrap:wrap; position:sticky; top:0; z-index:20; transition:background .18s;}
+  .topbar .tp-label{font-size:13.5px; color:var(--t3); margin-right:4px;}
+  .tab{padding:7px 15px; border:1px solid var(--line); border-radius:20px; font-size:13.5px; cursor:pointer;
+       background:var(--surface-2); transition:.16s; white-space:nowrap; color:var(--t2);}
+  .tab:hover{border-color:var(--brand-line); color:var(--brand-text); background:var(--brand-soft);}
+  .tab.active{background:var(--brand); color:#fff; border-color:var(--brand); box-shadow:var(--btn-shadow);}
+  .content{padding:28px 30px 60px; flex:1; min-width:0;}
+  .page-head{margin-bottom:22px;}
+  .page-head h2{font-size:22px; font-weight:650; letter-spacing:-.2px; display:flex; align-items:center; gap:11px; line-height:1.35;}
+  .page-head h2 .ico{width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+                     font-size:18px; background:var(--brand-soft);}
+  .page-head p{font-size:13.5px; color:var(--t3); margin-top:7px; line-height:1.7;}
+  /* ---------- 顶栏右侧工具 ---------- */
+  .top-tools{margin-left:auto; display:flex; align-items:center; gap:8px;}
+  .icon-btn{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+            cursor:pointer; color:var(--t2); background:var(--surface-2); border:1px solid var(--line); transition:.16s;}
+  .icon-btn:hover{color:var(--brand-text); border-color:var(--brand-line); background:var(--brand-soft);}
+  /* 主题菜单：从按钮正下方展开，不覆盖按钮，所以不会出现"点不到按钮"的情况 */
+  .theme-wrap{position:relative;}
+  .theme-menu{position:absolute; top:calc(100% + 7px); right:0; z-index:120; min-width:138px; padding:5px;
+    background:var(--surface); border:1px solid var(--line); border-radius:11px;
+    box-shadow:0 12px 30px rgba(16,24,40,.16); animation:pop .14s ease-out;}
+  @keyframes pop{from{opacity:0; transform:translateY(-5px);} to{opacity:1; transform:none;}}
+  .theme-item{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px;
+    font-size:13.5px; color:var(--t2); cursor:pointer; white-space:nowrap; transition:background .12s;}
+  .theme-item:hover{background:var(--brand-soft); color:var(--brand-text);}
+  .theme-item.on{background:var(--brand-soft); color:var(--brand-text); font-weight:600;}
+  .theme-item .tick{margin-left:auto; font-size:12px;}
+  [data-theme="dark"] .theme-menu{box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  /* ---------- 写作配置控件（分段选择器 / 开关 / 滑块 / 预设条）---------- */
+  .seg{display:flex; gap:3px; background:var(--surface-3); padding:3px; border-radius:10px; margin-top:6px;}
+  .seg-i{flex:1; text-align:center; padding:8px 10px; border-radius:8px; font-size:13px; color:var(--t2);
+    cursor:pointer; transition:all .14s; white-space:nowrap; user-select:none;}
+  .seg-i:hover{color:var(--brand-text);}
+  .seg-i.on{background:var(--surface); color:var(--brand-text); font-weight:600; box-shadow:0 1px 4px rgba(28,28,60,.1);}
+  [data-theme="dark"] .seg-i.on{background:var(--brand-soft); box-shadow:none;}
+  .sw{width:44px; height:25px; border-radius:14px; background:var(--line-strong); position:relative;
+    cursor:pointer; transition:background .18s; flex:0 0 44px;}
+  .sw::after{content:''; position:absolute; top:3px; left:3px; width:19px; height:19px; border-radius:50%;
+    background:#fff; transition:transform .18s; box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .sw.on{background:var(--brand);}
+  .sw.on::after{transform:translateX(19px);}
+  .sw-row{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 15px;
+    background:var(--surface-2); border:1px solid var(--line); border-radius:11px;}
+  .sw-t{font-size:13.5px; font-weight:550; color:var(--t1);}
+  .rng{width:100%; margin:9px 0 2px; -webkit-appearance:none; appearance:none; height:5px; border-radius:4px;
+    background:var(--surface-3); outline:none; cursor:pointer;}
+  .rng::-webkit-slider-thumb{-webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--brand); cursor:pointer; box-shadow:var(--btn-shadow); border:2.5px solid var(--surface);}
+  .preset-bar{display:flex; align-items:center; gap:11px; flex-wrap:wrap;}
+  .preset-bar .pb-label{font-size:13.5px; font-weight:600; color:var(--t1); white-space:nowrap;}
+  .preset-bar select{max-width:238px; margin:0; padding:9px 34px 9px 12px;}
+  .cfg-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 30px;}
+  @media(max-width:920px){ .cfg-grid{grid-template-columns:1fr;} }
+  .cfg-col label{margin-top:19px;}
+  .cfg-col label:first-child{margin-top:0;}
+  /* 就绪诊断清单 */
+  .rd-item{display:flex; gap:12px; padding:13px 0; border-bottom:1px dashed var(--line);}
+  .rd-item:last-child{border-bottom:none;}
+  .rd-dot{flex:0 0 20px; font-size:14px; line-height:1.55;}
+  .rd-body{flex:1; min-width:0;}
+  .rd-name{font-size:13.5px; font-weight:600; color:var(--t1);}
+  .rd-detail{font-size:13px; color:var(--t2); margin-top:3px; line-height:1.7;}
+  .rd-fix{font-size:12.5px; color:var(--brand-text); background:var(--brand-soft); border-radius:8px;
+    padding:8px 11px; margin-top:7px; line-height:1.7;}
+  .rd-head{display:flex; align-items:center; gap:12px; padding:15px 18px; border-radius:11px;
+    background:var(--brand-soft); border:1px solid var(--brand-line); margin-bottom:6px;}
+  .rd-head .big{font-size:15px; font-weight:650; color:var(--brand-text);}
+  .rd-head .sm{font-size:12.5px; color:var(--t2); margin-top:2px;}
+  /* ---------- 卡片 ---------- */
+  .card{background:var(--surface); border-radius:var(--radius); padding:24px 26px; box-shadow:var(--shadow);
+        margin-bottom:20px; border:1px solid var(--line); transition:background .18s;}
+  .card h3{font-size:15.5px; font-weight:650; margin-bottom:20px; display:flex; align-items:center; gap:10px; line-height:1.4;}
+  .card h3 .bar{width:3px; height:16px; border-radius:2px; background:linear-gradient(180deg,var(--brand),var(--purple));}
+  .card h3 .sub{font-size:12.5px; color:var(--t3); font-weight:400; margin-left:auto;}
+  /* ---------- 表单 ---------- */
+  label{display:block; font-size:13.5px; font-weight:500; color:var(--t2); margin:18px 0 8px; line-height:1.5;}
+  label:first-child{margin-top:0;}
+  input,textarea,select{width:100%; padding:11px 14px; border:1px solid var(--line-strong); border-radius:9px;
+    font-size:14.5px; font-family:inherit; background:var(--surface-2); color:var(--t1); transition:.16s; line-height:1.55;}
+  input::placeholder,textarea::placeholder{color:var(--t3);}
+  input:hover,textarea:hover,select:hover{border-color:var(--brand-line);}
+  input:focus,textarea:focus,select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3.5px var(--brand-ring);}
+  textarea{resize:vertical; min-height:112px; line-height:1.75;}
+  select{cursor:pointer; appearance:none; padding-right:38px; background-repeat:no-repeat; background-position:right 13px center;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23888ca0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px;}
+  .grid3{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:18px;}
+  .inline{display:flex; gap:10px; align-items:flex-end;}
+  button{cursor:pointer; border:none; border-radius:9px; padding:10px 18px; font-size:14px; font-weight:500;
+    background:var(--brand); color:#fff; transition:.16s; white-space:nowrap; font-family:inherit; line-height:1.45;
+    box-shadow:var(--btn-shadow);}
+  button:hover{background:var(--brand-d); box-shadow:var(--btn-shadow-h); transform:translateY(-1px);}
+  button:active{transform:translateY(0); box-shadow:var(--btn-shadow);}
+  button.ghost{background:var(--surface); color:var(--brand-text); border:1px solid var(--brand-line); box-shadow:none;}
+  button.ghost:hover{background:var(--brand-soft); box-shadow:0 2px 8px var(--brand-ring);}
+  button.gray{background:var(--surface-2); color:var(--t2); border:1px solid var(--line); box-shadow:none;}
+  button.gray:hover{background:var(--surface-3); box-shadow:none;}
+  button.danger{background:var(--red);} button.danger:hover{background:#dc2626; box-shadow:0 4px 14px rgba(239,68,68,.32);}
+  button.ok{background:var(--green);} button.ok:hover{background:#059669; box-shadow:0 4px 14px rgba(16,185,129,.32);}
+  button.sm{padding:6px 12px; font-size:12.5px; border-radius:7px;}
+  button.lg{padding:13px 28px; font-size:15px; border-radius:11px;}
+  button:disabled{opacity:.45; cursor:not-allowed; box-shadow:none; transform:none;}
+  .btn-row{display:flex; gap:11px; margin-top:20px; flex-wrap:wrap; align-items:center;}
+  /* ---------- 指标卡 ---------- */
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:18px; margin-bottom:20px;}
+  .stat-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px 22px;
+             box-shadow:var(--shadow); transition:.18s;}
+  .stat-card:hover{box-shadow:var(--shadow-h); transform:translateY(-2px); border-color:var(--brand-line);}
+  .stat-card .ico{width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; margin-bottom:14px;}
+  .stat-card .num{font-size:27px; font-weight:700; line-height:1.15; letter-spacing:-.8px;}
+  .stat-card .lbl{font-size:13px; color:var(--t2); margin-top:6px;}
+  .stat-card .sub{font-size:12px; color:var(--t3); margin-top:4px;}
+  /* ---------- 表格 ---------- */
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  th,td{padding:13px 14px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle; line-height:1.55;}
+  th{font-size:12.5px; color:var(--t3); font-weight:600; background:var(--surface-2); letter-spacing:.3px; white-space:nowrap;}
+  tbody tr{transition:background .13s;}
+  tbody tr:hover{background:var(--surface-3);}
+  tbody tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block; padding:2.5px 10px; border-radius:20px; font-size:12px; margin:2px 4px 2px 0;}
+  .tag.b{background:var(--brand-soft); color:var(--brand-text);}
+  .tag.g{background:rgba(16,185,129,.14); color:#0d9488;}
+  .tag.a{background:rgba(245,158,11,.16); color:#b45309;}
+  .tag.r{background:rgba(239,68,68,.14); color:#dc2626;}
+  .tag.p{background:rgba(139,92,246,.14); color:#7c3aed;}
+  .tag.n{background:var(--surface-3); color:var(--t2);}
+  /* 深色下标签文字提亮，保证可读 */
+  [data-theme="dark"] .tag.g{color:#34d399;} [data-theme="dark"] .tag.a{color:#fbbf24;}
+  [data-theme="dark"] .tag.r{color:#f87171;} [data-theme="dark"] .tag.p{color:#a78bfa;}
+  /* ---------- 其它 ---------- */
+  .hint{font-size:13px; color:var(--t3); line-height:1.8;}
+  .msg{margin-top:18px; padding:13px 16px; border-radius:10px; font-size:13.5px; line-height:1.75;}
+  .msg.ok{background:rgba(16,185,129,.12); color:#047857;}
+  .msg.err{background:rgba(239,68,68,.12); color:#b91c1c;}
+  .msg.info{background:var(--brand-soft); color:var(--brand-text);}
+  [data-theme="dark"] .msg.ok{color:#34d399;} [data-theme="dark"] .msg.err{color:#f87171;}
+  .result-box{background:var(--surface-2); border:1px solid var(--line); border-radius:11px; padding:24px 26px;
+              line-height:1.95; max-height:600px; overflow:auto; font-size:14.5px;}
+  .result-box h1{font-size:22px; margin:0 0 15px;} .result-box h2{font-size:18px; margin:22px 0 10px;}
+  .result-box h3{font-size:16px; margin:18px 0 8px;} .result-box p{margin:11px 0;}
+  .result-box li{margin-left:22px;} .result-box ul,.result-box ol{margin:11px 0;}
+  mark{background:var(--mark); padding:0 2px; border-radius:3px;}
+  .empty{text-align:center; padding:50px 12px; color:var(--t3);}
+  .empty svg{opacity:.55; margin-bottom:14px;}
+  .empty p{font-size:14px;}
+  .empty .tip{font-size:12.5px; margin-top:8px; color:var(--t3); opacity:.75;}
+  /* 提示层下移，避开顶栏右上角的主题按钮，免得挡住点不到 */
+  .toast-wrap{position:fixed; top:74px; right:20px; z-index:999; display:flex; flex-direction:column; gap:11px;}
+  .toast{padding:13px 19px; border-radius:11px; font-size:13.5px; color:#fff; box-shadow:0 10px 28px rgba(16,24,40,.2);
+         animation:slidein .2s ease-out; max-width:380px; line-height:1.65;}
+  .toast.ok{background:#059669;} .toast.err{background:#dc2626;} .toast.info{background:var(--brand-d);}
+  @keyframes slidein{from{transform:translateX(20px); opacity:0;} to{transform:none; opacity:1;}}
+  .modal-mask{position:fixed; inset:0; background:var(--overlay); backdrop-filter:blur(3px);
+              display:flex; align-items:flex-start; justify-content:center; padding:64px 16px; z-index:100; overflow-y:auto;}
+  .modal{background:var(--surface); border-radius:16px; width:100%; max-width:800px; padding:28px 30px;
+         box-shadow:0 24px 60px rgba(15,23,42,.3); border:1px solid var(--line);}
+  .modal h3{font-size:17.5px; margin-bottom:8px; font-weight:650;}
+  .modal .close{float:right; cursor:pointer; color:var(--t3); font-size:21px; line-height:1; transition:.15s;}
+  .modal .close:hover{color:var(--t1);}
+  .steps{display:flex; flex-direction:column; gap:0;}
+  .step{display:flex; gap:14px; padding:13px 0;}
+  .step .dot2{width:24px; height:24px; border-radius:50%; flex:0 0 24px; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff; background:var(--green); margin-top:1px;}
+  .step .dot2.bad{background:var(--red);}
+  .step .dot2.wait{background:var(--line-strong);}
+  .step .body{border-bottom:1px solid var(--line); padding-bottom:13px; flex:1;}
+  .step:last-child .body{border-bottom:none;}
+  .step .t{font-size:14.5px; font-weight:600;}
+  .step .d{font-size:13px; color:var(--t3); margin-top:5px; line-height:1.7;}
+  .bar-track{height:8px; background:var(--surface-3); border-radius:6px; overflow:hidden;}
+  .bar-fill{height:100%; background:linear-gradient(90deg,var(--brand),var(--purple)); border-radius:6px; transition:width .3s;}
+  .pillbox{display:flex; flex-wrap:wrap; gap:8px; margin-top:11px;}
+  .pill{font-size:12.5px; padding:4px 12px; border-radius:20px; background:var(--surface-3); color:var(--t2); line-height:1.6;}
+  .pill.clickable{cursor:pointer; transition:.15s; border:1px solid transparent;}
+  .pill.clickable:hover{border-color:var(--brand-line); color:var(--brand-text);}
+  .pill.clickable.sel{background:var(--brand-soft); color:var(--brand-text); font-weight:500; border-color:var(--brand-line);}
+  input[type=file]{padding:10px 13px; background:var(--surface-2); font-size:13px;}
+  input[type=file]::file-selector-button{margin-right:12px; padding:7px 14px; border:none; border-radius:7px;
+    background:var(--brand-soft); color:var(--brand-text); font-size:13px; cursor:pointer; font-family:inherit; transition:.15s;}
+  input[type=file]::file-selector-button:hover{background:var(--brand-line);}
+  .kv{display:flex; gap:10px; font-size:13.5px; padding:10px 0; border-bottom:1px dashed var(--line); line-height:1.6;}
+  .kv:last-child{border-bottom:none;} .kv .k{color:var(--t3); flex:0 0 104px;}
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px;}
+  .mini-card{border:1px solid var(--line); border-radius:12px; padding:19px 20px; background:var(--surface-2); transition:.18s;}
+  .mini-card:hover{border-color:var(--brand-line); box-shadow:0 8px 22px var(--brand-ring); transform:translateY(-2px);}
+  .mini-card .ttl{font-weight:600; font-size:14.5px; margin-bottom:9px; display:flex; align-items:center; gap:9px; line-height:1.45;}
+  .skeleton{height:15px; background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 50%,var(--surface-3) 75%); background-size:200% 100%; animation:sk 1.3s infinite; border-radius:5px;}
+  @keyframes sk{0%{background-position:200% 0;} 100%{background-position:-200% 0;}}
+  .sub-tabs{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .sub-tab{padding:8px 17px; border-radius:9px; font-size:13.5px; cursor:pointer; background:var(--surface-3); color:var(--t2); transition:.16s;}
+  .sub-tab:hover{background:var(--surface-2);}
+  .sub-tab.active{background:var(--brand-soft); color:var(--brand-text); font-weight:600; box-shadow:inset 0 0 0 1px var(--brand-line);}
+  .flex-between{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  /* ---------- 三步向导 ---------- */
+  .step-bar{display:flex; align-items:center; padding:18px 26px; background:var(--surface); border:1px solid var(--line);
+            border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px;}
+  .step-node{display:flex; align-items:center; gap:10px; font-size:14px; color:var(--t3); font-weight:500; white-space:nowrap;}
+  .step-node .n{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+                font-size:13px; background:var(--surface-3); color:var(--t3); font-weight:600; transition:.2s;}
+  .step-node.clickable{cursor:pointer;}
+  .step-node.clickable:hover{color:var(--brand-text);}
+  .step-node.active{color:var(--brand-text);}
+  .step-node.active .n{background:var(--brand); color:#fff; box-shadow:var(--btn-shadow);}
+  .step-node.done{color:var(--t2);}
+  .step-node.done .n{background:var(--brand-soft); color:var(--brand-text);}
+  .step-line{flex:1; height:2px; background:var(--line); margin:0 18px; border-radius:2px; min-width:24px;}
+  .step-line.done{background:var(--brand);}
+  /* ---------- 服务商卡片 ---------- */
+  .provider-card{display:flex; gap:13px; padding:15px 16px; border:1px solid var(--line); border-radius:12px;
+                 background:var(--surface-2); cursor:pointer; transition:.16s; position:relative;}
+  .provider-card:hover{border-color:var(--brand-line); box-shadow:0 4px 14px var(--brand-ring); transform:translateY(-1px);}
+  .provider-card.sel{border-color:var(--brand); background:var(--brand-soft); box-shadow:0 0 0 3px var(--brand-ring);}
+  .provider-logo{width:38px; height:38px; flex:0 0 38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+                 font-size:13.5px; font-weight:700; color:#fff; background:var(--brand); letter-spacing:-.5px;}
+  .provider-card .pname{font-size:14px; font-weight:600; color:var(--t1); padding-right:56px; line-height:1.4;}
+  .provider-card .pnote{font-size:12.5px; color:var(--t3); margin-top:4px; line-height:1.55;}
+  .provider-card .pstate{position:absolute; top:13px; right:14px; font-size:11.5px; color:var(--t3);}
+  .dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--line-strong); margin-right:5px; vertical-align:middle;}
+  .dot.on{background:var(--green);}
+  .scroll-y{max-height:460px; overflow-y:auto;}
+  code.inline{background:#f1f4f8; padding:2px 7px; border-radius:5px; font-size:13px; color:#b91c1c;}
+  /* ---------- 全局滚动条 / 选区 ---------- */
+  ::-webkit-scrollbar{width:10px; height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1; border-radius:6px; border:3px solid transparent; background-clip:content-box;}
+  ::-webkit-scrollbar-thumb:hover{background:#9aa8bb; background-clip:content-box;}
+  ::selection{background:#cfe0ff; color:#0f172a;}
+</style>
+</head>
+<body>
+<div id="app" class="layout" v-cloak>
+
+  <!-- ============ 侧栏 ============ -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">S</div>
+      <div class="logo-txt">SEO 矩阵<small>多平台内容 · 自动化流水线</small></div>
+    </div>
+
+    <div class="nav-item" :class="{active:view==='dashboard'}" @click="go('dashboard')"><span class="nav-icon">📊</span>仪表盘</div>
+    <div class="nav-item" :class="{active:view==='datacenter'}" @click="go('datacenter')"><span class="nav-icon">📈</span>数据中心</div>
+
+    <div class="nav-group" :class="{open:navOpen.create}" @click="toggleGroup('create')"><span>创作</span><span class="arrow"></span></div>
+    <template v-if="navOpen.create">
+      <div class="nav-item nav-sub" :class="{active:view==='write'}" @click="go('write')"><span class="nav-icon">✍️</span>AI 写作</div>
+      <div class="nav-item nav-sub" :class="{active:view==='batch'}" @click="go('batch')"><span class="nav-icon">⚡</span>批量创作</div>
+      <div class="nav-item nav-sub" :class="{active:view==='keywords'}" @click="go('keywords')"><span class="nav-icon">🔑</span>关键词库<span class="badge" v-if="stats.keywords_total">{{ stats.keywords_total }}</span></div>
+      <div class="nav-item nav-sub" :class="{active:view==='products'}" @click="go('products')"><span class="nav-icon">📦</span>产品库<span class="badge" v-if="stats.products_total">{{ stats.products_total }}</span></div>
+      <div class="nav-item nav-sub" :class="{active:view==='content'}" @click="go('content')"><span class="nav-icon">🧩</span>内容中心</div>
+      <div class="nav-item nav-sub" :class="{active:view==='social'}" @click="go('social')"><span class="nav-icon">💬</span>动态发布</div>
+      <div class="nav-item nav-sub" :class="{active:view==='video'}" @click="go('video')"><span class="nav-icon">🎬</span>视频发布</div>
+      <div class="nav-item nav-sub" :class="{active:view==='articles'}" @click="go('articles')"><span class="nav-icon">📚</span>文章库<span class="badge" v-if="stats.articles_total">{{ stats.articles_total }}</span></div>
+    </template>
+
+    <div class="nav-item" :class="{active:view==='templates'}" @click="go('templates')"><span class="nav-icon">🎨</span>模板市场</div>
+
+    <div class="nav-group" :class="{open:navOpen.smart}" @click="toggleGroup('smart')"><span>智能配置</span><span class="arrow"></span></div>
+    <template v-if="navOpen.smart">
+      <div class="nav-item nav-sub" :class="{active:view==='personas'}" @click="go('personas')"><span class="nav-icon">🧠</span>账号定位</div>
+      <div class="nav-item nav-sub" :class="{active:view==='knowledge'}" @click="go('knowledge')"><span class="nav-icon">📖</span>知识库<span class="badge" v-if="stats.knowledge_total">{{ stats.knowledge_total }}</span></div>
+      <div class="nav-item nav-sub" :class="{active:view==='models'}" @click="go('models')"><span class="nav-icon">🤖</span>模型中心</div>
+    </template>
+
+    <div class="nav-group" :class="{open:navOpen.auto}" @click="toggleGroup('auto')"><span>自动化</span><span class="arrow"></span></div>
+    <template v-if="navOpen.auto">
+      <div class="nav-item nav-sub" :class="{active:view==='pipeline'}" @click="go('pipeline')"><span class="nav-icon">🚀</span>一键流水线</div>
+      <div class="nav-item nav-sub" :class="{active:view==='automation'}" @click="go('automation')"><span class="nav-icon">📅</span>定时计划</div>
+      <div class="nav-item nav-sub" :class="{active:view==='webhooks'}" @click="go('webhooks')"><span class="nav-icon">🔌</span>接口回调</div>
+    </template>
+
+    <div class="nav-group" :class="{open:navOpen.publish}" @click="toggleGroup('publish')"><span>发布</span><span class="arrow"></span></div>
+    <template v-if="navOpen.publish">
+      <div class="nav-item nav-sub" :class="{active:view==='accounts'}" @click="go('accounts')"><span class="nav-icon">👥</span>多账号矩阵<span class="badge" v-if="stats.accounts_total">{{ stats.accounts_total }}</span></div>
+      <div class="nav-item nav-sub" :class="{active:view==='indexcheck'}" @click="go('indexcheck')"><span class="nav-icon">🔍</span>收录与推送</div>
+    </template>
+
+    <div class="nav-group" :class="{open:navOpen.system}" @click="toggleGroup('system')"><span>合规 / 系统</span><span class="arrow"></span></div>
+    <template v-if="navOpen.system">
+      <div class="nav-item nav-sub" :class="{active:view==='check'}" @click="go('check')"><span class="nav-icon">🛡️</span>违禁词检测</div>
+      <div class="nav-item nav-sub" :class="{active:view==='keys'}" @click="go('keys')"><span class="nav-icon">🔐</span>API 密钥</div>
+      <div class="nav-item nav-sub" :class="{active:view==='config'}" @click="go('config')"><span class="nav-icon">⚙️</span>站点配置</div>
+    </template>
+  </aside>
+
+  <!-- ============ 主区 ============ -->
+  <div class="main">
+    <div class="topbar">
+      <span class="tp-label">默认平台：</span>
+      <div v-for="p in platforms" :key="p.key" class="tab" :class="{active:platform===p.key}" @click="platform=p.key">{{ p.emoji }} {{ p.name }}</div>
+      <div class="top-tools">
+        <div class="theme-wrap">
+          <div class="icon-btn" @click.stop="toggleThemeMenu()" :title="'当前主题：' + themeLabel + '（点击选择）'">
+            <svg v-if="themeMode==='light'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>
+            </svg>
+            <svg v-else-if="themeMode==='dark'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.5 13.3A8.5 8.5 0 1110.7 3.5a6.6 6.6 0 009.8 9.8z"/>
+            </svg>
+            <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 010 17z" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+          <!-- 主题菜单：从按钮下方弹出，点一次直接生效 -->
+          <div class="theme-menu" v-if="themeOpen" @click.stop>
+            <div v-for="m in themeOptions" :key="m.key" class="theme-item" :class="{on: themeMode===m.key}" @click="setTheme(m.key)">
+              <span>{{ m.icon }}</span>{{ m.name }}<span v-if="themeMode===m.key" class="tick">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ========== 仪表盘 ========== -->
+      <div v-if="view==='dashboard'">
+        <div class="page-head">
+          <h2><span class="ico">📊</span>仪表盘</h2>
+          <p>今日进度、待办与配置状态一览（中英双语提示见各按钮说明）</p>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="ico" style="background:var(--brand-soft);">📚</div><div class="num">{{ stats.articles_total }}</div><div class="lbl">文章总数</div><div class="sub">今日新增 {{ stats.articles_today||0 }} 篇</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(245,158,11,.16);">📅</div><div class="num" style="color:var(--amber);">{{ stats.schedule_pending }}</div><div class="lbl">待发布计划</div><div class="sub">共 {{ stats.schedule_total }} 条计划</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(16,185,129,.14);">👥</div><div class="num">{{ stats.accounts_total }}</div><div class="lbl">绑定账号</div><div class="sub">覆盖 {{ Object.keys(stats.accounts_by_platform||{}).length }} 个平台</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(16,185,129,.14);">🚀</div><div class="num" style="color:var(--green);">{{ stats.push_ok }}</div><div class="lbl">推送成功</div><div class="sub">失败 {{ stats.push_fail }} 次</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(139,92,246,.14);">🔑</div><div class="num">{{ stats.keywords_total||0 }}</div><div class="lbl">关键词库</div><div class="sub">知识库 {{ stats.knowledge_total||0 }} 篇 · 产品 {{ stats.products_total||0 }} 个</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(6,182,212,.14);">🤖</div><div class="num" style="font-size:15px;margin-top:6px;">{{ stats.active_model }}</div><div class="lbl">当前生效模型</div><div class="sub">词库 {{ stats.banned_words_total }} 词</div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h3><span class="bar"></span>今日待办<span class="sub">到点的手动发布提醒</span></h3>
+            <div v-if="dueList.length">
+              <div v-for="d in dueList" :key="d.id" class="kv" style="align-items:center;">
+                <span class="k">{{ d.planned_at }}</span>
+                <span style="flex:1;">{{ platformName(d.platform) }} · {{ d.note||'待发布' }}</span>
+                <button class="ok sm" @click="doneSchedule(d.id)">标记已发</button>
+              </div>
+            </div>
+            <div v-else class="empty" style="padding:22px;">
+              <p>暂无到期待办 ✅</p>
+              <div class="tip">社交平台需手动发布（合规红线：不代发）</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="bar"></span>配置状态<span class="sub">点右下按钮去配置</span></h3>
+            <div class="kv"><span class="k">DeepSeek Key</span><span :class="stats.key_status.DEEPSEEK_API_KEY?'tag g':'tag r'">{{ stats.key_status.DEEPSEEK_API_KEY?'已配置':'未配置' }}</span></div>
+            <div class="kv"><span class="k">硅基流动 Key</span><span :class="stats.key_status.SILICONFLOW_API_KEY?'tag g':'tag r'">{{ stats.key_status.SILICONFLOW_API_KEY?'已配置':'未配置' }}</span></div>
+            <div class="kv"><span class="k">配图接口 Key</span><span :class="stats.key_status.IMAGE_API_KEY?'tag g':'tag r'">{{ stats.key_status.IMAGE_API_KEY?'已配置':'未配置' }}</span></div>
+            <div class="kv"><span class="k">站点域名</span><span :class="stats.key_status.BAIDU_SITE?'tag g':'tag r'">{{ stats.key_status.BAIDU_SITE?'已配置':'未配置' }}</span></div>
+            <div class="kv"><span class="k">百度 Token</span><span :class="stats.key_status.BAIDU_TOKEN?'tag g':'tag r'">{{ stats.key_status.BAIDU_TOKEN?'已配置':'未配置' }}</span></div>
+            <div class="btn-row">
+              <button class="ghost sm" @click="go('keys')">🔐 配置密钥</button>
+              <button class="ghost sm" @click="go('config')">⚙️ 站点配置</button>
+              <button class="ghost sm" @click="go('pipeline')">🚀 跑流水线</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 数据中心 ========== -->
+      <div v-if="view==='datacenter'">
+        <div class="page-head">
+          <h2><span class="ico">📈</span>数据中心</h2>
+          <p>按时间/平台/状态筛选内容表现，查看发布趋势、推送成功率与收录情况</p>
+        </div>
+        <div class="card">
+          <div class="grid3">
+            <div><label>时间范围</label>
+              <select v-model.number="dcFilter.days" @change="loadDatacenter">
+                <option :value="7">近 7 天</option><option :value="30">近 30 天</option>
+                <option :value="90">近 90 天</option><option :value="0">全部时间</option>
+              </select>
+            </div>
+            <div><label>平台</label>
+              <select v-model="dcFilter.platform" @change="loadDatacenter">
+                <option value="">全部平台</option>
+                <option v-for="p in platforms" :key="'dc'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option>
+              </select>
+            </div>
+            <div><label>状态</label>
+              <select v-model="dcFilter.status" @change="loadDatacenter">
+                <option value="">全部状态</option>
+                <option value="draft">草稿</option><option value="checked">已检测</option>
+                <option value="generated">已生成</option><option value="pushed">已推送</option>
+              </select>
+            </div>
+            <div><label>标题 / 关键词搜索</label><input v-model="dcFilter.q" placeholder="输入关键词后回车" @keyup.enter="loadDatacenter" /></div>
+          </div>
+          <div class="btn-row">
+            <button @click="loadDatacenter">🔄 查询 / 同步</button>
+            <button class="gray" @click="resetDc">重置筛选</button>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card"><div class="ico" style="background:var(--brand-soft);">📝</div><div class="num">{{ dc.metrics.articles }}</div><div class="lbl">发布作品</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(16,185,129,.14);">✅</div><div class="num">{{ dc.metrics.published }}</div><div class="lbl">已发布 / 已推送</div></div>
+          <div class="stat-card"><div class="ico" style="background:var(--brand-soft);">🚀</div><div class="num">{{ dc.metrics.push_ok }}</div><div class="lbl">推送成功</div><div class="sub">失败 {{ dc.metrics.push_fail }} 次</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(16,185,129,.14);">📊</div><div class="num" style="color:var(--green);">{{ dc.metrics.push_rate }}%</div><div class="lbl">推送成功率</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(245,158,11,.16);">📅</div><div class="num" style="color:var(--amber);">{{ dc.metrics.schedule_pending }}</div><div class="lbl">待发布计划</div></div>
+          <div class="stat-card"><div class="ico" style="background:rgba(139,92,246,.14);">🔍</div><div class="num">{{ dc.metrics.indexed }}<span style="font-size:13px;color:var(--t3);">/{{ dc.metrics.index_total }}</span></div><div class="lbl">已收录页面</div></div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>发布趋势<span class="sub">蓝=文章产出 · 绿=推送成功</span></h3>
+          <svg viewBox="0 0 600 150" style="width:100%; height:170px;">
+            <line v-for="i in 4" :key="'gl'+i" :x1="0" :x2="600" :y1="i*30" :y2="i*30" stroke="#eef2f7" stroke-width="1"/>
+            <polyline :points="dcArtPoints" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linejoin="round"/>
+            <polyline :points="dcPushPoints" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linejoin="round"/>
+            <text x="4" y="12" font-size="10" fill="#8b95a5">峰值 {{ dcMaxY }}</text>
+          </svg>
+          <div class="flex-between" style="margin-top:6px;">
+            <span class="hint">{{ dc.trend.length ? dc.trend[0].date : '' }}</span>
+            <span class="hint">近 {{ dc.trend.length }} 天</span>
+            <span class="hint">{{ dc.trend.length ? dc.trend[dc.trend.length-1].date : '' }}</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>平台概览<span class="sub">按文章数排序</span></h3>
+          <table v-if="dc.overview.length">
+            <thead><tr><th>平台</th><th>文章</th><th>已发布</th><th>推送成功</th><th>推送失败</th><th>最近推送</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="r in dc.overview" :key="r.platform">
+                <td>{{ platformName(r.platform) }}</td>
+                <td>{{ r.articles }}</td><td>{{ r.published }}</td>
+                <td style="color:var(--green);">{{ r.push_ok }}</td>
+                <td style="color:var(--red);">{{ r.push_fail }}</td>
+                <td class="hint">{{ r.last_push || '—' }}</td>
+                <td><button class="gray sm" @click="dcFilter.platform=r.platform; loadDatacenter()">筛选</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+            <p>没有匹配的数据</p><div class="tip">换个筛选条件，或先去「AI 写作」出一篇稿</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== AI 写作 ========== -->
+      <div v-if="view==='write'">
+        <div class="page-head">
+          <h2><span class="ico">✍️</span>AI 创作</h2>
+          <p>当前平台：{{ currentPlatform.emoji }} {{ currentPlatform.name }} · 三步出一篇稿，自动套模板 / 人设 / 知识库</p>
+        </div>
+
+        <div v-if="!aiReady" class="msg err" style="margin:0 0 20px;">
+          还没有配置 AI 密钥，暂时无法生成。请先到
+          <a @click="go('keys')" style="cursor:pointer;text-decoration:underline;font-weight:600;">API 密钥</a>
+          页选一个服务商（推荐 DeepSeek，中文写作最划算），填上 Key 即可开始创作。
+        </div>
+
+        <!-- 三步向导 -->
+        <div class="step-bar">
+          <div class="step-node clickable" :class="{active:writeStep===1, done:writeStep>1}" @click="writeStep=1">
+            <span class="n">1</span><span>选择素材</span>
+          </div>
+          <div class="step-line" :class="{done:writeStep>1}"></div>
+          <div class="step-node clickable" :class="{active:writeStep===2, done:writeStep>2}" @click="writeStep=2">
+            <span class="n">2</span><span>写作配置</span>
+          </div>
+          <div class="step-line" :class="{done:writeStep>2}"></div>
+          <div class="step-node clickable" :class="{active:writeStep===3}" @click="genResult && (writeStep=3)">
+            <span class="n">3</span><span>生成文章</span>
+          </div>
+        </div>
+
+        <!-- ===== 第一步：素材 ===== -->
+        <div class="card" v-show="writeStep===1">
+          <h3><span class="bar"></span>这篇稿子写什么<span class="sub">关键词越具体，出稿越准</span></h3>
+          <label>写作主题 / 关键词</label>
+          <input v-model="keyword" style="font-size:16px;padding:14px 16px;" placeholder="如：南京 2026 家政保洁价格 多少钱一次" @keyup.enter="writeStep=2" />
+          <div class="hint" style="margin-top:8px;">写法建议：地区 + 需求 + 疑问词，比如「南京 装修 半包 多少钱一平」——这种词百度上有人真在搜。</div>
+
+          <div class="grid2" style="margin-top:6px;">
+            <div><label>关联热点选题（可选）</label>
+              <div class="inline">
+                <select v-model="topicSel">
+                  <option value="">— 不关联 —</option>
+                  <option v-for="t in topics" :key="t.id" :value="t.keyword">{{ t.keyword }}</option>
+                  <option v-if="!topics.length" disabled>（选题库为空，先去「内容中心」添加）</option>
+                </select>
+                <button class="gray sm" @click="go('content')">去加选题</button>
+              </div>
+            </div>
+            <div><label>从素材库插入参考资料</label>
+              <div class="inline">
+                <select v-model="snipSel"><option value="">— 选择素材 —</option><option v-for="s in snippets" :key="s.id" :value="s.id">{{ s.title }}</option></select>
+                <button class="gray sm" @click="insertSnip">插入</button>
+              </div>
+            </div>
+          </div>
+
+          <label>关联产品<span class="hint" style="margin-left:6px;">不选＝按主题自动匹配；选了就只注入这几个的真实卖点</span></label>
+          <div class="pillbox" v-if="productList.length">
+            <span v-for="p in productList" :key="'wp'+p.id" class="pill clickable" :class="{sel: prodPicked.includes(p.id)}" @click="toggleProd(p.id)">{{ p.name }}</span>
+          </div>
+          <div class="hint" v-else>产品库是空的 —— 去「产品库」添加产品，出稿就能自动带上真实卖点与价格</div>
+
+          <label>真实参考资料<span class="hint" style="margin-left:6px;">强烈建议填 —— 百度专打「没有信息增量」的 AI 内容；会和知识库检索结果一起喂给模型</span></label>
+          <textarea v-model="realData" placeholder="粘贴真实行情 / 数据 / 事实，模型基于它写，不编造。例：2026年9月南京保洁市场价 35-45 元/小时，开荒 8-12 元/平米……"></textarea>
+
+          <div class="btn-row">
+            <button class="lg" @click="writeStep=2">下一步：配置写作</button>
+            <span class="hint">已选平台：{{ currentPlatform.name }}</span>
+          </div>
+        </div>
+
+        <!-- ===== 第二步：配置 ===== -->
+        <div class="card" v-show="writeStep===2">
+          <h3><span class="bar"></span>用什么写<span class="sub">这些都是「用一次记一次」，下次自动记住</span></h3>
+          <div class="grid2">
+            <div><label>使用模型</label>
+              <select v-model="selModel"><option v-for="m in modelList" :key="m.id" :value="m.id">{{ m.label }}{{ m.active?'（生效）':'' }}</option></select>
+            </div>
+            <div><label>账号人设（账号定位）</label>
+              <select v-model="accSel"><option value="">— 不用人设 —</option><option v-for="p in personaListForPlatform" :key="p.id" :value="p.name">{{ p.name }}</option></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 配置预设：整套写作配置存下来，一键切换 ===== -->
+        <div class="card" v-show="writeStep===2">
+          <div class="preset-bar">
+            <span class="pb-label">配置预设</span>
+            <select v-model="presetSel" @change="applyPreset">
+              <option value="">— 载入已存预设 —</option>
+              <option v-for="p in presetList" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <button class="gray sm" @click="promptSavePreset">保存当前</button>
+            <button class="ghost sm" :disabled="!presetSel" @click="delPreset">删除</button>
+            <span class="hint">把下面整套配置存成预设 —— 不同客户/行业各存一套，下次一键载入</span>
+          </div>
+        </div>
+
+        <!-- ===== 写作配置（全部可自定义）===== -->
+        <div class="card" v-show="writeStep===2">
+          <h3><span class="bar"></span>写作配置<span class="sub">{{ writingSummary }}</span></h3>
+          <div class="cfg-grid">
+            <div class="cfg-col">
+              <label>文章风格</label>
+              <select v-model="wcfg.style"><option v-for="it in optItems('style')" :key="it.key" :value="it.key">{{ it.name }}</option></select>
+              <div class="hint">{{ optNote('style', wcfg.style) }}</div>
+
+              <label>目标受众</label>
+              <select v-model="wcfg.audience"><option v-for="it in optItems('audience')" :key="it.key" :value="it.key">{{ it.name }}</option></select>
+              <div class="hint">{{ optNote('audience', wcfg.audience) }}</div>
+
+              <label>行业领域</label>
+              <input v-model="wcfg.industry" placeholder="如：家政保洁（留空则自动从关键词推断）" />
+
+              <label>文章字数：{{ wcfg.word_count ? wcfg.word_count + ' 字' : '不限' }}</label>
+              <input type="range" min="0" max="3000" step="100" v-model.number="wcfg.word_count" class="rng" />
+              <div class="hint">{{ wcfg.word_count ? '模型会按这个篇幅写（上下浮动不超过 15%）' : '不限字数 —— 往右拖设定具体字数，SEO 文章建议 1000~2000 字' }}</div>
+
+              <label>生成语言</label>
+              <div class="seg">
+                <div v-for="it in optItems('language')" :key="it.key" class="seg-i" :class="{on:wcfg.language===it.key}" @click="wcfg.language=it.key">{{ it.name }}</div>
+              </div>
+            </div>
+
+            <div class="cfg-col">
+              <label>目标平台</label>
+              <div class="seg">
+                <div class="seg-i" :class="{on:!wcfg.generic}" @click="wcfg.generic=false">{{ currentPlatform.emoji }} {{ currentPlatform.name }}调性</div>
+                <div class="seg-i" :class="{on:wcfg.generic}" @click="wcfg.generic=true">通用写法</div>
+              </div>
+              <div class="hint">{{ wcfg.generic ? '不针对具体平台，写成发到哪都能用的通用稿' : '套用「' + currentPlatform.name + '」的平台写作规则与违禁词' }}</div>
+
+              <label>标题必含关键词</label>
+              <input v-model="wcfg.title_kw" placeholder="逗号分隔，如：南京保洁,上门" />
+
+              <label>结构模板（自由填写）</label>
+              <textarea v-model="wcfg.structure" placeholder="痛点 → 原因分析 → 解决方案 → 使用效果 → 行动号召" style="min-height:66px;"></textarea>
+              <div class="hint">文章骨架自己想。填了会覆盖下面「模板市场」里选的模板</div>
+
+              <label>自定义补充要求</label>
+              <textarea v-model="wcfg.custom" placeholder="想让它怎么写就写在这儿，会原样变成写作要求。如：必须提到我们是本地门店；不得提竞品名" style="min-height:66px;"></textarea>
+            </div>
+          </div>
+
+          <label style="margin-top:22px;">创意度：{{ wcfg.temperature }}</label>
+          <input type="range" min="0.1" max="1.5" step="0.1" v-model.number="wcfg.temperature" class="rng" />
+          <div class="hint">低＝稳定保守（适合干货/资讯），高＝更活更有想法（适合故事/种草）</div>
+
+          <div class="grid3" style="margin-top:20px;">
+            <div class="sw-row">
+              <div><div class="sw-t">自动去 AI 味</div><div class="hint">追加去 AI 味要求，读起来更像真人分享</div></div>
+              <div class="sw" :class="{on:wcfg.deai}" @click="wcfg.deai=!wcfg.deai"></div>
+            </div>
+            <div class="sw-row">
+              <div><div class="sw-t">调用知识库</div><div class="hint">关掉则不使用知识库检索结果</div></div>
+              <div class="sw" :class="{on:wcfg.use_knowledge}" @click="wcfg.use_knowledge=!wcfg.use_knowledge"></div>
+            </div>
+            <div class="sw-row">
+              <div><div class="sw-t">配图带品牌水印</div><div class="hint">配图提示词里加上落款要求</div></div>
+              <div class="sw" :class="{on:wcfg.image_watermark}" @click="wcfg.image_watermark=!wcfg.image_watermark"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 配图策略 + 模板 + 生成 ===== -->
+        <div class="card" v-show="writeStep===2">
+          <h3><span class="bar"></span>配图策略<span class="sub">出稿后配图时用</span></h3>
+          <div class="grid2">
+            <div><label>图片策略</label>
+              <div class="seg">
+                <div v-for="it in optItems('image_strategy')" :key="it.key" class="seg-i" :class="{on:wcfg.image_strategy===it.key}" @click="wcfg.image_strategy=it.key">{{ it.name }}</div>
+              </div>
+              <div class="hint">{{ optNote('image_strategy', wcfg.image_strategy) }}</div>
+            </div>
+            <div><label>配图密度</label>
+              <div class="seg">
+                <div v-for="it in optItems('image_density')" :key="it.key" class="seg-i" :class="{on:wcfg.image_density===it.key}" @click="wcfg.image_density=it.key">{{ it.name }}</div>
+              </div>
+              <div class="hint">{{ optNote('image_density', wcfg.image_density) }}</div>
+            </div>
+          </div>
+
+          <label>写作模板（模板市场）</label>
+          <select v-model="tplSel"><option value="">— 不用模板 —</option><option v-for="t in tplListForPlatform" :key="t.id" :value="t.id">{{ t.name }}（{{ t.category }}）</option></select>
+          <div class="hint" style="margin-top:8px;">模板决定文章骨架，人设决定语气。两个都不选也能出稿，只是会更「通用」一些。</div>
+
+          <div class="btn-row">
+            <button class="gray" @click="writeStep=1">上一步</button>
+            <button class="lg" :disabled="genLoading" @click="generate">开始生成文章</button>
+            <button class="ghost" @click="go('keys')">配置密钥</button>
+          </div>
+          <div v-if="genLoading" class="msg info">正在调用模型写作，通常 5~20 秒，请稍候…</div>
+          <div v-if="genError" class="msg err">{{ genError }}</div>
+        </div>
+
+        <!-- ===== 第三步：结果 ===== -->
+        <div v-show="writeStep===3">
+          <div class="card" v-if="!genResult">
+            <div class="empty">
+              <p>还没有生成内容</p>
+              <div class="tip">回到第 2 步点「开始生成文章」</div>
+              <div class="btn-row" style="justify-content:center;">
+                <button class="gray" @click="writeStep=2">回到配置</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" v-if="genResult">
+            <h3><span class="bar"></span>生成结果
+              <span class="sub">{{ genModel }} · {{ matches.length ? '已标红 '+matches.length+' 处违禁词' : '未检出违禁词' }}</span>
+            </h3>
+            <div class="result-box" v-html="rendered"></div>
+            <div class="btn-row">
+              <button class="ok" @click="saveArticle">保存草稿</button>
+              <button @click="openPublish">发布 / 推送百度</button>
+              <button class="ghost" @click="detect">违禁词检测</button>
+              <button class="ghost" @click="makeCover">配图方案</button>
+              <button class="ghost" @click="copyMarkdown(genResult)">复制 Markdown</button>
+              <button class="ghost" @click="copyRich(genResult)">复制富文本</button>
+              <button class="gray" :disabled="genLoading" @click="generate">重新生成</button>
+            </div>
+          </div>
+
+          <div class="card" v-if="coverResult">
+            <h3><span class="bar"></span>配图方案</h3>
+            <div v-if="coverResult.prompt" class="result-box" style="max-height:220px;"><b>提示词：</b>{{ coverResult.prompt }}<div v-if="coverResult.image_url" style="margin-top:10px;"><img :src="coverResult.image_url" style="max-width:100%;border-radius:8px;" /></div></div>
+            <div v-else class="msg err">{{ coverResult.message || JSON.stringify(coverResult) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 批量创作 ========== -->
+      <div v-if="view==='batch'">
+        <div class="page-head">
+          <h2><span class="ico">⚡</span>批量创作</h2>
+          <p>一行一个关键词，逐个出稿并自动存草稿；适合一次铺一批长尾词</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>批量配置</h3>
+          <div class="grid2">
+            <div><label>关键词（一行一个，最多 10 个）</label><textarea v-model="batchText" placeholder="南京 油价&#10;南京 加油站 哪家便宜&#10;南京 92 号汽油 价格"></textarea></div>
+            <div>
+              <label>平台</label>
+              <select v-model="platform"><option v-for="p in platforms" :key="'b'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select>
+              <label>写作模板</label>
+              <select v-model="tplSel"><option value="">— 不用模板 —</option><option v-for="t in tplListForPlatform" :key="'bt'+t.id" :value="t.id">{{ t.name }}</option></select>
+              <label>账号人设</label>
+              <select v-model="accSel"><option value="">— 不用人设 —</option><option v-for="p in personaListForPlatform" :key="'ba'+p.id" :value="p.name">{{ p.name }}</option></select>
+            </div>
+          </div>
+          <label>真实参考资料（可选，会用于这一批全部文章）</label>
+          <textarea v-model="realData" style="min-height:60px;" placeholder="粘贴这一批共用的真实数据/事实"></textarea>
+          <div class="btn-row">
+            <button :disabled="batchRunning" @click="runBatch">⚡ 开始批量生成</button>
+            <button class="gray" :disabled="!batchRunning" @click="batchStop=true">停止</button>
+            <span class="hint" v-if="batchList.length">进度 {{ batchDone }}/{{ batchList.length }}，成功 {{ batchOk }} 篇</span>
+          </div>
+          <div v-if="batchRunning||batchList.length" class="bar-track" style="margin-top:12px;"><div class="bar-fill" :style="{width: batchPct+'%'}"></div></div>
+        </div>
+        <div class="card" v-if="batchList.length">
+          <h3><span class="bar"></span>生成明细</h3>
+          <table>
+            <thead><tr><th>关键词</th><th>状态</th><th>字数</th><th>结果</th></tr></thead>
+            <tbody>
+              <tr v-for="(b,i) in batchList" :key="i">
+                <td>{{ b.keyword }}</td>
+                <td><span :class="b.status==='ok'?'tag g':(b.status==='fail'?'tag r':'tag a')">{{ b.status==='ok'?'已保存':(b.status==='fail'?'失败':'生成中') }}</span></td>
+                <td>{{ b.len || '—' }}</td>
+                <td class="hint">{{ b.note || '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 关键词库 ========== -->
+      <div v-if="view==='keywords'">
+        <div class="page-head">
+          <h2><span class="ico">🔑</span>关键词库</h2>
+          <p>管理要做的词：分组 / 搜索意图 / 难度。可 AI 拓展长尾词，直接作为批量创作输入</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>AI 拓展长尾词<span class="sub">基于种子词让模型给相关词</span></h3>
+          <div class="inline">
+            <input v-model="expandSeed" placeholder="输入种子词，如：南京 装修" @keyup.enter="doExpand" />
+            <button :disabled="expandLoading" @click="doExpand">✨ 拓展</button>
+          </div>
+          <div v-if="expandList.length" style="margin-top:12px;">
+            <div class="hint">勾选后入库：</div>
+            <div style="margin-top:8px;">
+              <span v-for="(e,i) in expandList" :key="i" class="pill" style="cursor:pointer;" :style="e.picked?'background:var(--brand-soft);color:#1d4ed8;':''" @click="e.picked=!e.picked">
+                {{ e.picked?'✓ ':'' }}{{ e.keyword }} <span style="color:#a8b2c1;">{{ e.intent }}/{{ e.difficulty }}</span>
+              </span>
+            </div>
+            <div class="btn-row"><button class="ok" @click="importExpanded">➕ 入库选中词</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>手动添加</h3>
+          <div class="grid3">
+            <div><label>关键词</label><input v-model="kwForm.keyword" placeholder="如：南京 装修 报价" /></div>
+            <div><label>分组</label><input v-model="kwForm.group" placeholder="默认分组" /></div>
+            <div><label>搜索意图</label><select v-model="kwForm.intent"><option v-for="i in kwIntents" :key="i" :value="i">{{ i }}</option></select></div>
+            <div><label>难度（1 好做 ~ 5 难）</label><select v-model.number="kwForm.difficulty"><option v-for="n in 5" :key="n" :value="n">{{ n }}</option></select></div>
+            <div><label>备注</label><input v-model="kwForm.note" placeholder="选填" /></div>
+          </div>
+          <div class="btn-row"><button @click="addKeyword">➕ 添加</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>词库<span class="sub">共 {{ kwList.length }} 词</span></h3>
+          <div class="grid2" style="margin-bottom:12px;">
+            <div><label>按分组筛选</label><select v-model="kwFilterGroup"><option value="">全部分组</option><option v-for="(n,g) in kwGroups" :key="g" :value="g">{{ g }}（{{ n }}）</option></select></div>
+            <div><label>搜索</label><input v-model="kwFilterQ" placeholder="输入关键词筛选" /></div>
+          </div>
+          <table v-if="kwFiltered.length">
+            <thead><tr><th>关键词</th><th>分组</th><th>意图</th><th>难度</th><th>备注</th><th>创建</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="k in kwFiltered" :key="k.id">
+                <td>{{ k.keyword }}</td><td><span class="tag n">{{ k.group }}</span></td>
+                <td><span class="tag b">{{ k.intent }}</span></td>
+                <td><span class="tag a">{{ '★'.repeat(k.difficulty) }}</span></td>
+                <td class="hint">{{ k.note || '—' }}</td><td class="hint">{{ k.created_at }}</td>
+                <td>
+                  <button class="gray sm" @click="batchText = kwList.map(x=>x.keyword).join('\n'); go('batch')">去批量</button>
+                  <button class="danger sm" @click="delKeyword(k.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <p>词库还是空的</p><div class="tip">用上面的「AI 拓展」或「手动添加」加第一批词</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 内容中心 ========== -->
+      <!-- ========== 产品库 ========== -->
+      <div v-if="view==='products'">
+        <div class="page-head">
+          <h2><span class="ico">📦</span>产品库</h2>
+          <p>存产品资料（名称/卖点/规格/价格/图片），出稿时按主题自动匹配注入，让 AI 写出带真实卖点的内容 —— 这是「有信息增量」的关键</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>{{ prodForm.id ? '编辑产品' : '添加产品' }}<span class="sub" v-if="prodForm.id">正在编辑 {{ prodForm.name }}</span></h3>
+          <div class="grid2">
+            <div><label>产品名称 *</label><input v-model="prodForm.name" placeholder="如：南京家庭保洁 4 小时套餐" /></div>
+            <div><label>分类</label><input v-model="prodForm.category" list="prodCats" placeholder="如：家政服务" />
+              <datalist id="prodCats"><option v-for="c in prodCats" :key="c" :value="c"></option></datalist>
+            </div>
+          </div>
+          <label>卖点（一行一条，注入时按行拼给模型）</label>
+          <textarea v-model="prodForm.selling" placeholder="十年家政经验&#10;先服务后付款&#10;不满意免费返工"></textarea>
+          <div class="grid2">
+            <div><label>价格</label><input v-model="prodForm.price" placeholder="如：298 元/次" /></div>
+            <div><label>规格 / 参数</label><input v-model="prodForm.specs" placeholder="如：4 小时/次，2 人上门" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>产品链接（可选）</label><input v-model="prodForm.url" placeholder="https://..." /></div>
+            <div><label>主图地址（可选，配图参考用）</label><input v-model="prodForm.image" placeholder="图片 URL" /></div>
+          </div>
+          <label>标签（逗号分隔，参与主题匹配）</label>
+          <input v-model="prodForm.tags" placeholder="如：南京,保洁,家政" />
+          <div class="btn-row">
+            <button @click="saveProduct">{{ prodForm.id ? '💾 保存修改' : '➕ 添加产品' }}</button>
+            <button class="gray" v-if="prodForm.id" @click="resetProdForm">取消编辑</button>
+          </div>
+          <div v-if="prodMsg" :class="['msg', prodMsgType]">{{ prodMsg }}</div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>注入预览<span class="sub">看看出稿时会喂给模型什么</span></h3>
+          <div class="inline">
+            <input v-model="prodQuery" placeholder="输入写作主题，如：南京保洁哪家好" @keyup.enter="testProdMatch" />
+            <button class="gray" :disabled="prodTesting" @click="testProdMatch">🔍 预览</button>
+          </div>
+          <div v-if="prodCtx" class="result-box" style="margin-top:12px;max-height:260px;white-space:pre-wrap;font-size:13px;">{{ prodCtx }}</div>
+          <div v-else-if="prodTested" class="msg info">没匹配到产品（换个主题词，或先添加产品）</div>
+        </div>
+
+        <div class="card">
+          <div class="flex-between">
+            <h3 style="margin:0;"><span class="bar"></span>产品列表<span class="sub">{{ productList.length }} 个</span></h3>
+            <div class="inline" style="max-width:360px;">
+              <input v-model="prodFilterCat" placeholder="按分类" @keyup.enter="loadProducts" />
+              <input v-model="prodFilterQ" placeholder="搜名称/卖点" @keyup.enter="loadProducts" />
+              <button class="gray sm" @click="loadProducts">筛选</button>
+            </div>
+          </div>
+          <div class="card-grid" v-if="productList.length" style="margin-top:14px;">
+            <div v-for="p in productList" :key="p.id" class="mini-card">
+              <div class="ttl">📦 {{ p.name }}<span class="tag b">{{ p.category }}</span></div>
+              <div class="hint" v-if="p.price">💰 {{ p.price }}<span v-if="p.specs"> · {{ p.specs }}</span></div>
+              <div v-if="p.selling" style="margin-top:7px;">
+                <div v-for="(s,i) in p.selling.split('\n').filter(x=>x.trim())" :key="i" class="hint">· {{ s }}</div>
+              </div>
+              <div class="pillbox" v-if="p.tags"><span v-for="(t,i) in p.tags.split(',').filter(x=>x.trim())" :key="i" class="pill">{{ t.trim() }}</span></div>
+              <div class="btn-row" style="margin-top:10px;">
+                <button class="gray sm" @click="editProduct(p)">编辑</button>
+                <button class="danger sm" @click="delProduct(p.id)">删</button>
+              </div>
+            </div>
+          </div>
+          <div class="empty" v-else>
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+            <p>还没有产品</p><div class="tip">把要推广的产品/服务录进来，AI 出稿就能带上真实卖点和价格</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="view==='content'">
+        <div class="page-head">
+          <h2><span class="ico">🧩</span>内容中心</h2>
+          <p>热点选题 + 素材库：灵感与真实资料都放这里，写作时随时调用</p>
+        </div>
+        <div class="sub-tabs">
+          <div class="sub-tab" :class="{active:contentTab==='topics'}" @click="contentTab='topics'">🔥 热点选题</div>
+          <div class="sub-tab" :class="{active:contentTab==='snippets'}" @click="contentTab='snippets'">📎 素材库</div>
+        </div>
+
+        <div v-if="contentTab==='topics'">
+          <div class="card">
+            <h3><span class="bar"></span>AI 推荐选题<span class="sub">点推荐词即可入库</span></h3>
+            <div class="inline">
+              <input v-model="topicKw" placeholder="输入领域/种子词，如：南京 油价" @keyup.enter="recommendTopics" />
+              <button :disabled="topicLoading" @click="recommendTopics">✨ AI 推荐</button>
+              <button class="gray" @click="addTopic(topicKw)">➕ 直接入库</button>
+            </div>
+            <div v-if="recList.length" class="pillbox">
+              <span v-for="(r,i) in recList" :key="i" class="pill" style="cursor:pointer;background:var(--brand-soft);color:#1d4ed8;" @click="addTopic(r)">{{ r }}</span>
+            </div>
+            <div v-if="topicLoading" class="msg info">推荐中…</div>
+          </div>
+          <div class="card">
+            <h3><span class="bar"></span>选题库<span class="sub">共 {{ topics.length }} 条</span></h3>
+            <table v-if="topics.length">
+              <thead><tr><th>选题</th><th>来源</th><th>创建时间</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="t in topics" :key="t.id">
+                  <td>{{ t.keyword }}</td><td class="hint">{{ t.source||'—' }}</td><td class="hint">{{ t.created_at }}</td>
+                  <td><button class="ghost sm" @click="topicSel=t.keyword; go('write')">去写作</button><button class="danger sm" @click="delTopic(t.id)">删</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else class="empty"><p>还没有选题</p><div class="tip">用上面的 AI 推荐加几个</div></div>
+          </div>
+        </div>
+
+        <div v-if="contentTab==='snippets'">
+          <div class="card">
+            <h3><span class="bar"></span>添加素材<span class="sub">真实数据/事实/金句，写作时一键插入</span></h3>
+            <div class="grid2">
+              <div><label>标题</label><input v-model="snipForm.title" placeholder="如：2026年9月南京油价" /></div>
+              <div><label>标签</label><input v-model="snipForm.tags" placeholder="如：油价,南京" /></div>
+            </div>
+            <label>内容</label>
+            <textarea v-model="snipForm.content" placeholder="粘贴真实数据或可引用的事实片段…"></textarea>
+            <div class="btn-row"><button @click="addSnippet">➕ 保存素材</button></div>
+          </div>
+          <div class="card">
+            <h3><span class="bar"></span>素材库<span class="sub">共 {{ snippets.length }} 条</span></h3>
+            <div class="card-grid" v-if="snippets.length">
+              <div v-for="s in snippets" :key="s.id" class="mini-card">
+                <div class="ttl">📎 {{ s.title }}</div>
+                <div class="hint" style="max-height:66px; overflow:hidden;">{{ s.content }}</div>
+                <div class="btn-row" style="margin-top:10px;">
+                  <span class="tag n">{{ s.created_at }}</span>
+                  <button class="gray sm" @click="copyText(s.content)">复制</button>
+                  <button class="danger sm" @click="delSnippet(s.id)">删除</button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty"><p>素材库是空的</p><div class="tip">把真实数据存进来，AI 写稿才不是空话</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 动态发布 / 视频发布 ========== -->
+      <div v-if="view==='social'||view==='video'">
+        <div class="page-head">
+          <h2><span class="ico">{{ view==='video'?'🎬':'💬' }}</span>{{ view==='video'?'视频发布':'动态发布' }}</h2>
+          <p>{{ view==='video' ? '生成口播脚本 + 分镜提示 + 备选标题，直接开拍' : '生成社媒短文案 + 话题标签，直接粘贴发布' }}</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>{{ view==='video'?'脚本配置':'文案配置' }}</h3>
+          <div class="grid2">
+            <div><label>主题 / 关键词</label><input v-model="socKeyword" placeholder="如：南京 秋天 团建 好去处" /></div>
+            <div><label>平台</label><select v-model="platform"><option v-for="p in platforms" :key="'s'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select></div>
+          </div>
+          <div class="grid2">
+            <div><label>模型</label><select v-model="selModel"><option v-for="m in modelList" :key="'sm'+m.id" :value="m.id">{{ m.label }}</option></select></div>
+            <div><label>账号人设</label><select v-model="accSel"><option value="">— 不用人设 —</option><option v-for="p in personaListForPlatform" :key="'sp'+p.id" :value="p.name">{{ p.name }}</option></select></div>
+          </div>
+          <label>真实素材（可选，但强烈建议）</label>
+          <textarea v-model="socRealData" placeholder="这一条要讲到的事实/优惠/数据…"></textarea>
+          <div class="btn-row">
+            <button :disabled="socLoading" @click="genSocial">{{ view==='video'?'🎬 生成脚本':'💬 生成文案' }}</button>
+            <button class="ghost" :disabled="!socResult" @click="copyMarkdown(socResult)">📋 复制</button>
+            <button class="ghost" :disabled="!socResult" @click="copyRich(socResult)">📄 复制富文本</button>
+            <button class="ghost ok" :disabled="!socResult" @click="saveSocial">💾 存为草稿</button>
+          </div>
+          <div v-if="socError" class="msg err">{{ socError }}</div>
+          <div v-if="socLoading" class="msg info">生成中…</div>
+        </div>
+        <div class="card" v-if="socResult">
+          <h3><span class="bar"></span>生成结果</h3>
+          <div class="result-box" v-html="renderContent(socResult, [])"></div>
+        </div>
+      </div>
+
+      <!-- ========== 文章库 ========== -->
+      <div v-if="view==='articles'">
+        <div class="page-head">
+          <h2><span class="ico">📚</span>文章库</h2>
+          <p>已保存的稿件：导出 SEO 静态页、推送百度、定时提醒</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>全部文章
+            <span class="sub">{{ articles.length }} 篇</span>
+            <button class="gray sm" style="margin-left:14px;" @click="openTrash()">回收站</button>
+          </h3>
+          <table v-if="articles.length">
+            <thead><tr><th>标题</th><th>平台</th><th>状态</th><th>时间</th><th style="width:280px;">操作</th></tr></thead>
+            <tbody>
+              <tr v-for="a in articles" :key="a.id">
+                <td style="max-width:280px;">{{ a.title||'(无标题)' }}</td>
+                <td><span class="tag n">{{ platformName(a.platform) }}</span></td>
+                <td><span :class="statusCls(a.status)">{{ statusText(a.status) }}</span></td>
+                <td class="hint">{{ a.created_at }}</td>
+                <td>
+                  <button class="gray sm" @click="viewArticle(a)">查看</button>
+                  <button class="ghost sm" @click="exportArticle(a)">导出 SEO 页</button>
+                  <button class="ghost sm" @click="openPublishFromArticle(a)">推送</button>
+                  <button class="danger sm" @click="delArticle(a.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5"/></svg>
+            <p>还没有文章</p><div class="tip">去「AI 写作」出一篇，或跑一次「一键流水线」</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 模板市场 ========== -->
+      <div v-if="view==='templates'">
+        <div class="page-head">
+          <h2><span class="ico">🎨</span>模板市场</h2>
+          <p>写作模板 = 结构大纲 + 写法要求，出稿时选用即可让模型按固定结构写</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>新建模板</h3>
+          <div class="grid3">
+            <div><label>模板名</label><input v-model="tplForm.name" placeholder="如：本地服务 FAQ" /></div>
+            <div><label>分类</label><input v-model="tplForm.category" placeholder="SEO / 本地 / 商业…" /></div>
+            <div><label>适用平台（留空=通用）</label>
+              <select v-model="tplForm.platform"><option value="">通用</option><option v-for="p in platforms" :key="'tp'+p.key" :value="p.key">{{ p.name }}</option></select>
+            </div>
+          </div>
+          <label>结构大纲</label><input v-model="tplForm.outline" placeholder="如：痛点 → 分步骤 → 常见坑 → 总结" />
+          <label>写法要求</label><textarea v-model="tplForm.instruction" style="min-height:60px;" placeholder="如：小标题用 H2，步骤要具体可执行"></textarea>
+          <div class="btn-row"><button @click="addTemplate">➕ 创建模板</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>全部模板<span class="sub">{{ tplListAll.length }} 个（内置不可删）</span></h3>
+          <div class="card-grid">
+            <div v-for="t in tplListAll" :key="t.id" class="mini-card">
+              <div class="ttl">🎨 {{ t.name }}<span class="tag b">{{ t.category }}</span><span v-if="t.builtin" class="tag n">内置</span></div>
+              <div class="hint"><b>结构：</b>{{ t.outline || '—' }}</div>
+              <div class="hint" style="margin-top:4px;"><b>要求：</b>{{ t.instruction || '—' }}</div>
+              <div class="btn-row" style="margin-top:10px;">
+                <span class="tag n">{{ t.platform ? platformName(t.platform) : '通用' }}</span>
+                <button class="gray sm" @click="tplSel=t.id; go('write')">用它写作</button>
+                <button class="danger sm" v-if="!t.builtin" @click="delTemplate(t.id)">删</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 账号定位 ========== -->
+      <div v-if="view==='personas'">
+        <div class="page-head">
+          <h2><span class="ico">🧠</span>账号定位</h2>
+          <p>同平台多账号写不同人设：受众 / 语气 / 卖点 / 禁用表达，出稿自动叠加</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>新建账号人设</h3>
+          <div class="grid2">
+            <div><label>平台</label><select v-model="personaForm.platform"><option v-for="p in platforms" :key="'pe'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select></div>
+            <div><label>账号名（与多账号矩阵里的名字一致即自动匹配）</label><input v-model="personaForm.name" placeholder="如：南京吃喝老张" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>目标受众</label><input v-model="personaForm.audience" placeholder="如：南京本地 25-40 岁上班族" /></div>
+            <div><label>语气风格</label><input v-model="personaForm.tone" placeholder="如：老练、直给、带点本地梗" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>主推卖点 / 业务</label><input v-model="personaForm.selling" placeholder="如：装修半包、免费量房" /></div>
+            <div><label>禁用表达 / 不可提内容</label><input v-model="personaForm.taboo" placeholder="如：不提价格战、不提竞品名" /></div>
+          </div>
+          <label>其它要求</label><input v-model="personaForm.extra" placeholder="如：每篇结尾带一句本地口播式引导（不导流）" />
+          <div class="btn-row"><button @click="addPersona">➕ 保存人设</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>已配置人设<span class="sub">{{ personaList.length }} 个</span></h3>
+          <div class="card-grid" v-if="personaList.length">
+            <div v-for="p in personaList" :key="p.id" class="mini-card">
+              <div class="ttl">🧠 {{ p.name }}<span class="tag n">{{ platformName(p.platform) }}</span></div>
+              <div class="kv"><span class="k">受众</span><span>{{ p.audience||'—' }}</span></div>
+              <div class="kv"><span class="k">语气</span><span>{{ p.tone||'—' }}</span></div>
+              <div class="kv"><span class="k">卖点</span><span>{{ p.selling||'—' }}</span></div>
+              <div class="kv"><span class="k">禁用</span><span>{{ p.taboo||'—' }}</span></div>
+              <div class="btn-row" style="margin-top:10px;">
+                <button class="gray sm" @click="accSel=p.name; platform=p.platform; go('write')">用它写作</button>
+                <button class="danger sm" @click="delPersona(p.id)">删</button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty"><p>还没配置人设</p><div class="tip">配了人设，同一平台多个账号的稿子才不撞脸</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 知识库 ========== -->
+      <div v-if="view==='knowledge'">
+        <div class="page-head">
+          <h2><span class="ico">📖</span>知识库</h2>
+          <p>存自己的真实资料，出稿时按关键词自动检索相关段落注入（本地检索，零额外成本）</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>批量导入文件<span class="sub">PDF / Word(.docx) / Excel(.xlsx) / TXT / MD / CSV</span></h3>
+          <div class="grid2">
+            <div><label>选择文件（可多选）</label>
+              <input type="file" multiple accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.json" @change="importDocs" />
+            </div>
+            <div><label>统一标签（可选）</label><input v-model="importTags" placeholder="如：竞品资料,行业报告" /></div>
+          </div>
+          <div class="hint">自动解析成文字并按段落切分入库（超过 1.5 万字自动切份，检索更准）。<br />注意：扫描版 PDF 是图片、解析不出文字，需要先 OCR 成文本文档。</div>
+          <div v-if="importing" class="msg info">正在解析上传的文件…</div>
+          <div v-if="importLog.length" class="msg ok">
+            <div v-for="(l,i) in importLog" :key="i">{{ l }}</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>手动添加资料</h3>
+          <div class="grid2">
+            <div><label>标题</label><input v-model="docForm.title" placeholder="如：南京装修市场价格调研 2026" /></div>
+            <div><label>标签</label><input v-model="docForm.tags" placeholder="如：装修,南京,行情" /></div>
+          </div>
+          <label>正文（可粘贴大段资料，按段落切分检索）</label>
+          <textarea v-model="docForm.content" style="min-height:150px;" placeholder="把资料整段粘贴进来，出稿时会自动挑相关段落给模型"></textarea>
+          <div class="btn-row"><button @click="addDoc">➕ 保存资料</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>检索测试<span class="sub">验证模型能看到哪些段落</span></h3>
+          <div class="inline">
+            <input v-model="kbQuery" placeholder="输入一个主题，如：装修报价" @keyup.enter="testKb" />
+            <button :disabled="kbTesting" @click="testKb">🔍 检索</button>
+          </div>
+          <div v-if="kbHits.length" style="margin-top:12px;">
+            <div v-for="(h,i) in kbHits" :key="i" class="mini-card" style="margin-bottom:9px;">
+              <div class="ttl">📄 {{ h.doc_title }} <span class="tag g">命中 {{ h.hit }}</span></div>
+              <div class="hint">{{ h.text }}</div>
+            </div>
+          </div>
+          <div v-else-if="kbTested" class="msg info">没有命中段落（换个词，或先补充资料）</div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>资料列表<span class="sub">{{ docList.length }} 篇</span></h3>
+          <table v-if="docList.length">
+            <thead><tr><th>标题</th><th>标签</th><th>字数</th><th>时间</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="d in docList" :key="d.id">
+                <td>{{ d.title }}</td><td class="hint">{{ d.tags||'—' }}</td>
+                <td>{{ d.chars }}</td><td class="hint">{{ d.created_at }}</td>
+                <td>
+                  <button class="gray sm" @click="viewDoc(d.id)">查看</button>
+                  <button class="danger sm" @click="delDoc(d.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty"><p>知识库是空的</p><div class="tip">存进去的资料越真实，AI 稿越有信息增量</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 模型中心 ========== -->
+      <div v-if="view==='models'">
+        <div class="page-head">
+          <h2><span class="ico">🤖</span>模型中心</h2>
+          <p>支持 DeepSeek / 硅基流动等 OpenAI 兼容端点；切换后出稿即用新模型</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>添加模型</h3>
+          <div class="grid2">
+            <div><label>显示名</label><input v-model="newModel.label" placeholder="如：DeepSeek V3" /></div>
+            <div><label>model_name（接口里的模型名）</label><input v-model="newModel.model_name" placeholder="deepseek-chat" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>接口地址</label><input v-model="newModel.api_base" placeholder="https://api.deepseek.com/chat/completions" /></div>
+            <div><label>用哪个 Key</label><select v-model="newModel.key_env"><option value="DEEPSEEK_API_KEY">DeepSeek Key</option><option value="SILICONFLOW_API_KEY">硅基流动 Key</option></select></div>
+          </div>
+          <div class="btn-row"><button @click="addModel">➕ 添加模型</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>模型列表</h3>
+          <table>
+            <thead><tr><th>显示名</th><th>模型名</th><th>端点</th><th>Key</th><th>状态</th><th style="width:230px;">操作</th></tr></thead>
+            <tbody>
+              <tr v-for="m in modelList" :key="m.id">
+                <td>{{ m.label }}</td><td class="hint">{{ m.model_name }}</td>
+                <td class="hint" style="max-width:220px;word-break:break-all;">{{ m.api_base }}</td>
+                <td class="hint">{{ m.key_env }}</td>
+                <td><span :class="m.active?'tag g':'tag n'">{{ m.active?'生效中':'待用' }}</span></td>
+                <td>
+                  <button class="ghost sm" v-if="!m.active" @click="setActive(m.id)">设为生效</button>
+                  <button class="gray sm" @click="testModel(m.id)">测试</button>
+                  <button class="danger sm" @click="delModel(m.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="modelMsg" class="msg" :class="modelMsgOk?'ok':'err'">{{ modelMsg }}</div>
+        </div>
+      </div>
+
+      <!-- ========== 一键流水线 ========== -->
+      <div v-if="view==='pipeline'">
+        <div class="page-head">
+          <h2><span class="ico">🚀</span>一键流水线</h2>
+          <p>关键词 → 出稿 → 违禁词检测 → 存草稿 → 配图 → 导出 SEO 页 → 推送百度，一条龙跑完</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>流水线配置</h3>
+          <div class="grid2">
+            <div><label>关键词</label><input v-model="pipeForm.keyword" placeholder="如：南京 装修 半包 价格" @keyup.enter="runPipeline" /></div>
+            <div><label>平台</label><select v-model="pipeForm.platform"><option v-for="p in platforms" :key="'pf'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select></div>
+          </div>
+          <div class="grid2">
+            <div><label>模型</label><select v-model="pipeForm.model_id"><option v-for="m in modelList" :key="'pm'+m.id" :value="m.id">{{ m.label }}</option></select></div>
+            <div><label>写作模板</label><select v-model="pipeForm.template_id"><option value="">— 不用模板 —</option><option v-for="t in tplListForPlatform" :key="'pt'+t.id" :value="t.id">{{ t.name }}</option></select></div>
+          </div>
+          <label>关联产品<span class="hint" style="margin-left:6px;">不选＝按关键词自动匹配</span></label>
+          <div class="pillbox" v-if="productList.length">
+            <span v-for="p in productList" :key="'pp'+p.id" class="pill clickable" :class="{sel: prodPicked.includes(p.id)}" @click="toggleProd(p.id)">{{ p.name }}</span>
+          </div>
+          <div class="hint" v-else>产品库为空 —— 可在「产品库」添加产品</div>
+          <label>真实参考资料（可选）</label>
+          <textarea v-model="pipeForm.real_data" style="min-height:70px;" placeholder="有就填：真实数据/事实，AI 基于它写"></textarea>
+          <div class="btn-row">
+            <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" v-model="pipeForm.auto_cover" style="width:auto;" />同时生成配图方案</label>
+            <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" v-model="pipeForm.auto_push" style="width:auto;" />完成后推送百度</label>
+          </div>
+          <div class="btn-row"><button :disabled="pipeRunning" @click="runPipeline">🚀 开始跑流水线</button></div>
+          <div v-if="pipeRunning" class="msg info">正在执行，出稿约需 5~20 秒…</div>
+        </div>
+        <div class="card" v-if="pipeSteps.length">
+          <h3><span class="bar"></span>执行结果<span class="sub">{{ platformName(pipeForm.platform) }}</span></h3>
+          <div class="steps">
+            <div v-for="(s,i) in pipeSteps" :key="i" class="step">
+              <div class="dot2" :class="s.ok?'':'bad'">{{ s.ok?'✓':'!' }}</div>
+              <div class="body"><div class="t">{{ s.name }}</div><div class="d">{{ s.detail }}</div></div>
+            </div>
+          </div>
+          <div class="btn-row" v-if="pipeArticleId">
+            <button class="ghost sm" @click="viewArticleById(pipeArticleId)">查看文章</button>
+            <button class="ghost sm" @click="go('articles')">去文章库</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 定时计划 ========== -->
+      <div v-if="view==='automation'">
+        <div class="page-head">
+          <h2><span class="ico">📅</span>定时计划</h2>
+          <p>到点提醒你去发（社交平台不代发）；百度等全自动平台可直接推送</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>新建计划</h3>
+          <div class="grid2">
+            <div><label>选择文章</label><select v-model="schForm.article_id"><option value="">— 请选择 —</option><option v-for="a in articles" :key="'sa'+a.id" :value="a.id">{{ a.title||a.id }}</option></select></div>
+            <div><label>平台</label><select v-model="schForm.platform"><option v-for="p in platforms" :key="'sc'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select></div>
+          </div>
+          <div class="grid2">
+            <div><label>账号（可选）</label><select v-model="schForm.account"><option value="">— 不指定 —</option><option v-for="a in accountGroups.flatMap(g=>g.items)" :key="'sac'+a.id" :value="a.name">{{ a.name }}</option></select></div>
+            <div><label>计划时间</label><input v-model="schForm.planned_at" placeholder="如：2026-09-30 09:00" /></div>
+          </div>
+          <label>备注</label><input v-model="schForm.note" placeholder="如：配好图后发小红书" />
+          <div class="btn-row"><button @click="createSchedule">➕ 创建计划</button></div>
+          <div v-if="schMsg" class="msg info">{{ schMsg }}</div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>计划列表<span class="sub">待办 {{ dueList.length }} 条</span></h3>
+          <table v-if="scheduleList.length">
+            <thead><tr><th>时间</th><th>平台</th><th>账号</th><th>备注</th><th>状态</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="s in scheduleList" :key="s.id">
+                <td>{{ s.planned_at }}</td><td><span class="tag n">{{ platformName(s.platform) }}</span></td>
+                <td class="hint">{{ s.account||'—' }}</td><td class="hint">{{ s.note||'—' }}</td>
+                <td><span :class="s.status==='done'?'tag g':'tag a'">{{ s.status==='done'?'已发布':'待发布' }}</span></td>
+                <td>
+                  <button class="ok sm" v-if="s.status!=='done'" @click="doneSchedule(s.id)">标记已发</button>
+                  <button class="danger sm" @click="delSchedule(s.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty"><p>还没有计划</p><div class="tip">给社交平台的稿子排个时间，到点提醒你发</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 接口回调 ========== -->
+      <div v-if="view==='webhooks'">
+        <div class="page-head">
+          <h2><span class="ico">🔌</span>接口回调（Webhook）</h2>
+          <p>事件发生时把数据 POST 到你的地址：可接飞书通知、自己的发布服务</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>添加回调</h3>
+          <div class="grid2">
+            <div><label>名称</label><input v-model="hookForm.name" placeholder="如：飞书群机器人" /></div>
+            <div><label>地址（http/https）</label><input v-model="hookForm.url" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx" /></div>
+            <div><label>触发事件</label><select v-model="hookForm.event"><option v-for="(n,e) in hookEvents" :key="e" :value="e">{{ n }}</option></select></div>
+          </div>
+          <div class="btn-row"><button @click="addHook">➕ 添加回调</button></div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>回调列表<span class="sub">{{ hooks.length }} 个</span></h3>
+          <table v-if="hooks.length">
+            <thead><tr><th>名称</th><th>地址</th><th>事件</th><th>状态</th><th>最近调用</th><th style="width:200px;">操作</th></tr></thead>
+            <tbody>
+              <tr v-for="h in hooks" :key="h.id">
+                <td>{{ h.name }}</td>
+                <td class="hint" style="max-width:220px;word-break:break-all;">{{ h.url }}</td>
+                <td><span class="tag b">{{ hookEvents[h.event]||h.event }}</span></td>
+                <td><span :class="h.enabled?'tag g':'tag n'">{{ h.enabled?'启用':'停用' }}</span></td>
+                <td class="hint">{{ h.last_status||'—' }}<div v-if="h.last_time" style="color:#c3cad6;">{{ h.last_time }}</div></td>
+                <td>
+                  <button class="gray sm" @click="testHook(h.id)">测试</button>
+                  <button class="gray sm" @click="toggleHook(h.id)">{{ h.enabled?'停用':'启用' }}</button>
+                  <button class="danger sm" @click="delHook(h.id)">删</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty"><p>还没有回调地址</p><div class="tip">不需要就忽略；想自动化通知就加一个</div></div>
+          <div v-if="hookMsg" class="msg" :class="hookMsgOk?'ok':'err'">{{ hookMsg }}</div>
+        </div>
+      </div>
+
+      <!-- ========== 多账号矩阵 ========== -->
+      <div v-if="view==='accounts'">
+        <div class="page-head">
+          <h2><span class="ico">👥</span>多账号矩阵</h2>
+          <p>同一平台可绑定多个账号并设默认；账号名与「账号定位」一致时出稿自动套人设。「发布预设」记录该账号每次发布都要填的固定项（标签/分类/可见性/封面）</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>添加账号</h3>
+          <div class="grid2">
+            <div><label>平台</label><select v-model="accForm.platform"><option v-for="p in platforms" :key="'ac'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select></div>
+            <div><label>账号名 / 昵称</label><input v-model="accForm.name" placeholder="如：南京吃喝老张" /></div>
+          </div>
+          <div class="grid2">
+            <div><label>主页链接（可选）</label><input v-model="accForm.url" placeholder="https://..." /></div>
+            <div><label>备注</label><input v-model="accForm.note" placeholder="如：本地生活号，粉丝 1.2w" /></div>
+          </div>
+          <div class="btn-row">
+            <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" v-model="accForm.is_default" style="width:auto;" />设为该平台默认账号</label>
+            <button @click="addAccount">➕ 添加</button>
+          </div>
+        </div>
+        <div class="card" v-for="g in accountGroups" :key="g.platform">
+          <h3><span class="bar"></span>{{ g.name }}<span class="sub">{{ g.items.length }} 个账号</span></h3>
+          <div class="card-grid">
+            <div v-for="a in g.items" :key="a.id" class="mini-card">
+              <div class="ttl">👤 {{ a.name }}<span v-if="a.is_default" class="tag g">默认</span></div>
+              <div class="hint">{{ a.url||'无链接' }}</div>
+              <div class="hint" v-if="a.note" style="margin-top:4px;">{{ a.note }}</div>
+              <div class="hint" v-if="presetFilled(a.preset)" style="margin-top:6px;">
+                <span class="tag p">发布预设</span>
+                <span v-if="a.preset.visibility">{{ a.preset.visibility }} · </span>
+                <span v-if="a.preset.category">{{ a.preset.category }} · </span>
+                <span v-if="a.preset.tags">{{ a.preset.tags }}</span>
+              </div>
+              <div class="btn-row" style="margin-top:10px;">
+                <button class="gray sm" @click="openPreset(a)">发布预设</button>
+                <button class="gray sm" v-if="!a.is_default" @click="setDefault(a.id)">设为默认</button>
+                <button class="danger sm" @click="delAccount(a.id)">删</button>
+              </div>
+              <div v-if="presetEditing===a.id" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);">
+                <label>默认标签 / 话题</label><input v-model="presetForm.tags" placeholder="如：#南京保洁 #家政" />
+                <div class="grid2">
+                  <div><label>默认分类 / 栏目</label><input v-model="presetForm.category" placeholder="如：本地生活" /></div>
+                  <div><label>可见性 / 发布范围</label><input v-model="presetForm.visibility" placeholder="如：公开" /></div>
+                </div>
+                <div class="grid2">
+                  <div><label>默认封面图</label><input v-model="presetForm.cover" placeholder="图片 URL" /></div>
+                  <div><label>其他固定内容</label><input v-model="presetForm.extra" placeholder="如：作者名、原文链接" /></div>
+                </div>
+                <div class="btn-row">
+                  <button class="sm" @click="savePreset(a.id)">保存预设</button>
+                  <button class="gray sm" @click="presetEditing=''">取消</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card" v-if="!accounts.length">
+          <div class="empty"><p>还没有绑定账号</p><div class="tip">账号只用于记录与提醒，不会替你登录（合规红线）</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 收录与推送 ========== -->
+      <div v-if="view==='indexcheck'">
+        <div class="page-head">
+          <h2><span class="ico">🔍</span>收录与推送</h2>
+          <p>批量查 URL 是否被百度收录 + 查看推送日志（推送 API 免费，仅受配额限制）</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>收录检测<span class="sub">一次最多 10 条</span></h3>
+          <label>URL 列表（一行一个）</label>
+          <textarea v-model="idxUrls" placeholder="https://你的域名/seo-123456.html"></textarea>
+          <div class="btn-row">
+            <button :disabled="idxLoading" @click="runIndexCheck">🔍 开始检测</button>
+            <button class="gray" @click="fillArticleUrls">填入最近文章 URL</button>
+          </div>
+          <div v-if="idxLoading" class="msg info">检测中（每条约 1~3 秒，避免触发百度反爬）…</div>
+          <div v-if="idxNote" class="msg info" style="margin-top:10px;">📌 {{ idxNote }}</div>
+          <table v-if="idxResults.length" style="margin-top:12px;">
+            <thead><tr><th>URL</th><th>状态</th><th>详情</th></tr></thead>
+            <tbody>
+              <tr v-for="(r,i) in idxResults" :key="i">
+                <td class="hint" style="max-width:280px;word-break:break-all;">{{ r.url }}</td>
+                <td><span :class="r.status==='indexed'?'tag g':(r.status==='not_indexed'?'tag r':'tag a')">{{ idxStatusText(r.status) }}</span></td>
+                <td class="hint">{{ r.detail }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>推送日志<span class="sub">共 {{ pushLog.length }} 次</span></h3>
+          <table v-if="pushLog.length">
+            <thead><tr><th>时间</th><th>平台</th><th>URL</th><th>结果</th></tr></thead>
+            <tbody>
+              <tr v-for="(l,i) in pushLog.slice(0,40)" :key="i">
+                <td class="hint">{{ l.time }}</td><td><span class="tag n">{{ platformName(l.platform||'baidu') }}</span></td>
+                <td class="hint" style="max-width:300px;word-break:break-all;">{{ (l.urls||[]).join(', ') }}</td>
+                <td><span :class="l.success?'tag g':'tag r'">{{ l.success?'成功':'失败' }}</span> <span class="hint">{{ l.message||'' }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty"><p>还没有推送记录</p><div class="tip">配好域名和 Token 后，在文章库点「推送」</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 违禁词检测 ========== -->
+      <div v-if="view==='check'">
+        <div class="page-head">
+          <h2><span class="ico">🛡️</span>违禁词检测</h2>
+          <p>通用词库（广告法极限词）+ 平台专属词库（各平台规则不同）</p>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>文本检测</h3>
+          <div class="grid2">
+            <div><label>按平台检测（不选=只查通用词库）</label>
+              <select v-model="checkPlatform"><option value="">通用词库（全部平台）</option><option v-for="p in platforms" :key="'cp'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select>
+            </div>
+          </div>
+          <div v-if="checkPlatform && wordTips[checkPlatform]" class="hint" style="margin-top:6px;">📌 该平台规则：{{ wordTips[checkPlatform] }}</div>
+          <textarea v-model="checkTextInput" placeholder="粘贴要检查的文案…" style="margin-top:10px;"></textarea>
+          <div class="btn-row"><button @click="doCheck">🔍 检测</button></div>
+          <div v-if="checkResult.length" class="msg err">命中 {{ checkResult.length }} 处：<span v-for="(m,i) in uniqueWords(checkResult)" :key="i" class="tag r">{{ m }}</span></div>
+          <div v-else-if="checkDone" class="msg ok">未检出违禁词 ✅</div>
+        </div>
+        <div class="card">
+          <h3><span class="bar"></span>词库管理</h3>
+          <div class="hint">通用词库对所有平台生效；平台专属词库只在检测该平台时额外生效。</div>
+          <div class="grid2" style="margin-top:10px;">
+            <div><label>加到哪个词库</label>
+              <select v-model="wordPlatform"><option value="">通用词库</option><option v-for="p in platforms" :key="'wp'+p.key" :value="p.key">{{ p.name }} 专属</option></select>
+            </div>
+            <div><label>新词</label><div class="inline"><input v-model="newWord" placeholder="输入违禁词" @keyup.enter="addWord" /><button @click="addWord">➕ 添加</button></div></div>
+          </div>
+          <div style="margin-top:14px;">
+            <b style="font-size:13px;">通用词库（{{ wordsData.common.length }} 词）：</b>
+            <div class="pillbox">
+              <span v-for="(w,i) in wordsData.common" :key="'c'+i" class="pill">{{ w }} <span style="cursor:pointer;color:var(--red);" @click="delWord(w,'')">✕</span></span>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <b style="font-size:13px;">平台专属词库：</b>
+            <table style="margin-top:8px;" v-if="Object.keys(wordsData.platform).length">
+              <thead><tr><th style="width:110px;">平台</th><th>专属违禁词</th><th style="width:32%;">规则说明</th></tr></thead>
+              <tbody>
+                <tr v-for="(words,pk) in wordsData.platform" :key="'pk'+pk">
+                  <td>{{ platformName(pk) }}</td>
+                  <td>
+                    <span v-for="(w,i) in words" :key="'p'+pk+i" class="tag a">{{ w }} <span style="cursor:pointer;" @click="delWord(w,pk)">✕</span></span>
+                    <span v-if="!words.length" class="hint">暂无专属词</span>
+                  </td>
+                  <td class="hint">{{ wordTips[pk] || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== API 密钥 ========== -->
+      <div v-if="view==='keys'">
+        <div class="page-head">
+          <h2><span class="ico">🔐</span>API 密钥与模型</h2>
+          <p>选一家服务商 → 填 Key → 接口地址和模型名自动配好，马上就能出稿。整条链路只有调模型花钱</p>
+        </div>
+
+        <!-- 当前生效 -->
+        <div class="card" v-if="activeModel">
+          <div class="flex-between">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div class="provider-logo">{{ activeProviderShort }}</div>
+              <div>
+                <div style="font-size:15.5px;font-weight:600;">当前生效：{{ activeModel.label }}</div>
+                <div class="hint" style="margin-top:3px;">{{ activeModel.api_base }}</div>
+              </div>
+            </div>
+            <div class="btn-row" style="margin:0;">
+              <button class="ghost" @click="testActiveModel()">测试连接</button>
+            </div>
+          </div>
+          <div v-if="keyMsg" class="msg" :class="keyMsgOk?'ok':'err'">{{ keyMsg }}<div v-if="keyMsgSrc" class="hint" style="color:inherit;opacity:.75;">{{ keyMsgSrc }}</div></div>
+        </div>
+
+        <!-- 服务商分组 -->
+        <div class="card" v-for="g in providerGroups" :key="g.key">
+          <h3><span class="bar"></span>{{ g.label }}<span class="sub">{{ g.desc }}</span></h3>
+          <div class="card-grid">
+            <div v-for="p in providersByGroup(g.key)" :key="p.key"
+                 class="provider-card" :class="{sel: expandedProvider===p.key}"
+                 @click="pickProvider(p)">
+              <div class="provider-logo">{{ p.short }}</div>
+              <div style="min-width:0;flex:1;">
+                <div class="pname">{{ p.name }}</div>
+                <div class="pnote">{{ p.note }}</div>
+              </div>
+              <div class="pstate">
+                <span v-if="p.is_active" class="tag b">使用中</span>
+                <span v-else-if="p.key_configured" class="tag g">已配置</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="curProvider && curProvider.group === g.key"
+               style="margin-top:22px;padding-top:22px;border-top:1px dashed var(--line);">
+            <div class="flex-between" style="margin-bottom:16px;">
+              <div style="font-size:15.5px;font-weight:600;">配置 {{ curProvider.name }}</div>
+              <a v-if="curProvider.site" :href="curProvider.site" target="_blank" class="hint" style="text-decoration:none;">去申请 Key →</a>
+            </div>
+            <div class="grid2">
+              <div><label>模型名（下拉可选，也能自己填）</label>
+                <input v-model="pvModel" list="pv-models" placeholder="模型名" />
+                <datalist id="pv-models"><option v-for="m in curProvider.models" :key="m" :value="m"></option></datalist>
+              </div>
+              <div><label>接口地址（一般不用改）</label>
+                <input v-model="pvBase" placeholder="https://.../chat/completions" />
+              </div>
+            </div>
+            <label>API Key</label>
+            <div class="inline">
+              <input v-model="pvKey" type="password"
+                     :placeholder="curProvider.key_configured ? '已保存过，留空表示不修改' : (curProvider.group==='local' ? '本地模型不用填，直接保存' : '粘贴在这里，如 sk-...')" />
+              <button @click="saveProvider">保存并启用</button>
+              <button class="gray" @click="testProvider">测试连接</button>
+            </div>
+            <div class="hint" style="margin-top:10px;">
+              模型名会随厂商更新（DeepSeek 今年就换过），若报 model not found，去官网复制当前名称填进来即可。
+            </div>
+            <div v-if="pvMsg" class="msg" :class="pvOk?'ok':'err'">{{ pvMsg }}</div>
+          </div>
+        </div>
+
+        <!-- 配图（可选） -->
+        <div class="card">
+          <h3><span class="bar"></span>配图接口（可选）<span class="sub">不填也能用，只是只给提示词不出图</span></h3>
+          <div class="grid3">
+            <div><label>接口地址</label><input v-model="keyForm.IMAGE_API_BASE" placeholder="https://api.xxx.com/v1/images/generations" /></div>
+            <div><label>Key</label><input v-model="keyForm.IMAGE_API_KEY" type="password" placeholder="sk-..." /></div>
+            <div><label>模型名</label><input v-model="keyForm.IMAGE_MODEL" placeholder="如：flux-schnell" /></div>
+          </div>
+          <div class="btn-row"><button @click="saveImageKey">保存配图配置</button><button class="gray" @click="testKey('image')">测试</button></div>
+        </div>
+
+        <!-- 百度推送（免费） -->
+        <div class="card">
+          <h3><span class="bar"></span>百度推送（免费）<span class="sub">需要在「站点配置」里填已备案域名和 Token</span></h3>
+          <div class="hint">百度主动推送不收费，只有每日配额限制。Token 在百度搜索资源平台 → 普通收录 → API 提交 里拿。</div>
+          <div class="btn-row"><button class="ghost" @click="go('config')">去站点配置</button></div>
+        </div>
+      </div>
+
+      <!-- ========== 站点配置 ========== -->
+      <div v-if="view==='config'">
+        <div class="page-head">
+          <h2><span class="ico">⚙️</span>站点配置</h2>
+          <p>百度推送需要：已备案域名 + 搜索资源平台的推送 Token（都免费）</p>
+        </div>
+        <!-- 百度闭环「准备就绪」体检：缺什么、下一步做什么，一眼看清 -->
+        <div class="card">
+          <h3><span class="bar"></span>百度跑通体检
+            <span class="sub" v-if="readiness">已通过 {{ readiness.passed }} / {{ readiness.total }} 项</span>
+          </h3>
+          <div v-if="readiness" class="rd-head">
+            <div style="flex:1;min-width:0;">
+              <div class="big">{{ readiness.ready ? '✅ 百度闭环已就绪，可以出稿 → 导出 → 推送了' : '⚠️ 还差几步才能真跑通百度' }}</div>
+              <div class="sm">下一步：{{ readiness.next_step }}</div>
+            </div>
+            <button class="gray sm" :disabled="rdLoading" @click="loadReadiness">{{ rdLoading ? '检测中…' : '重新检测' }}</button>
+          </div>
+          <div v-else class="btn-row" style="margin-top:0;">
+            <button class="gray sm" :disabled="rdLoading" @click="loadReadiness">{{ rdLoading ? '检测中…' : '开始体检' }}</button>
+            <span class="hint">逐项检查：域名 / 可访问 / 备案 / Token / 内容 / 静态页 / 推送</span>
+          </div>
+          <div v-if="readiness">
+            <div v-for="i in readiness.items" :key="i.key" class="rd-item">
+              <div class="rd-dot">{{ rdMark(i.status) }}</div>
+              <div class="rd-body">
+                <div class="rd-name">{{ i.name }}</div>
+                <div class="rd-detail">{{ i.detail }}</div>
+                <div v-if="i.fix && i.status!=='ok'" class="rd-fix">👉 {{ i.fix }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>百度站点</h3>
+          <div class="grid2">
+            <div><label>站点域名（已备案，如 www.example.com）</label><input v-model="configForm.BAIDU_SITE" placeholder="www.example.com" /></div>
+            <div><label>推送 Token（留空=不修改）</label><input v-model="configForm.BAIDU_TOKEN" placeholder="在百度搜索资源平台 → 普通收录 → API 提交里获取" /></div>
+          </div>
+          <div class="btn-row">
+            <button @click="saveConfig">💾 保存配置</button>
+            <button class="gray" @click="testKey('baidu')">测试百度推送</button>
+          </div>
+          <div v-if="configMsg" class="msg ok">{{ configMsg }}</div>
+          <div class="hint" style="margin-top:14px;line-height:1.9;">
+            • 文章导出的静态页在 <code class="inline">backend/data/html/</code>，需上传到你的服务器才能被百度抓到（这步目前手动）。<br/>
+            • 百度主动推送 <b>免费</b>，只有每日配额限制；只有大模型调用按 token 计费。<br/>
+            • 社交平台（小红书/微博/抖音等）<b>不做代发</b>：模拟登录违反平台协议、有封号风险，工具只做出稿+检测+配图+提醒。
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========== 发布弹层 ========== -->
+  <div class="modal-mask" v-if="pubModal.open" @click.self="pubModal.open=false">
+    <div class="modal">
+      <span class="close" @click="pubModal.open=false">✕</span>
+      <h3>📤 发布 / 推送</h3>
+      <div v-if="currentPlatform.mode==='auto'">
+        <p class="hint">当前平台 <b>{{ currentPlatform.name }}</b> 支持官方接口推送（免费）。URL 已按站点配置自动拼好，可直接推。</p>
+        <label>要推送的 URL（一行一个）</label>
+        <textarea v-model="pubModal.urls" placeholder="https://你的域名/seo-xxx.html"></textarea>
+        <div class="btn-row">
+          <button :disabled="pubModal.loading" @click="doPushArticle">🚀 一键推送（用文章 ID 自动拼 URL）</button>
+          <button class="ghost" :disabled="pubModal.loading" @click="doPush">推送上面填写的 URL</button>
+        </div>
+      </div>
+      <div v-else>
+        <p class="hint">当前平台 <b>{{ currentPlatform.name }}</b> 为半自动模式（合规要求，不代发）。按下面步骤操作：</p>
+        <div class="step"><div class="dot2">1</div><div class="body"><div class="t">复制文案</div><div class="d">用写作台的「复制富文本」可保留标题/列表结构</div></div></div>
+        <div class="step"><div class="dot2">2</div><div class="body"><div class="t">上传配图</div><div class="d">配图方案里有提示词，或用你自己的图</div></div></div>
+        <div class="step"><div class="dot2">3</div><div class="body"><div class="t">到平台发布 + 定时提醒</div><div class="d">可在「定时计划」里建一条提醒，到点弹通知</div></div></div>
+        <div class="btn-row">
+          <button class="ghost" @click="copyRich(pubModal.content)">📄 复制富文本</button>
+          <button class="ghost" @click="openScheduleFromPub">📅 建定时提醒</button>
+        </div>
+      </div>
+      <div v-if="pushDisplay" class="msg" :class="pushDisplay.cls">
+        {{ pushDisplay.zh }}<div class="hint" style="color:inherit;opacity:.75;">{{ pushDisplay.en }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 文章查看弹层 ========== -->
+  <div class="modal-mask" v-if="viewArticleData" @click.self="viewArticleData=null">
+    <div class="modal">
+      <span class="close" @click="viewArticleData=null">✕</span>
+      <h3>{{ viewArticleData.title || '(无标题)' }}</h3>
+      <div class="hint">{{ platformName(viewArticleData.platform) }} · {{ viewArticleData.created_at }}</div>
+      <div class="btn-row">
+        <button class="ghost sm" @click="copyMarkdown(viewArticleData.content)">复制 MD</button>
+        <button class="ghost sm" @click="copyRich(viewArticleData.content)">复制富文本</button>
+        <button class="ghost sm" @click="exportArticle(viewArticleData)">导出 SEO 页</button>
+        <button class="ghost sm" @click="openPublishFromArticle(viewArticleData)">推送 / 发布</button>
+      </div>
+      <div class="result-box" style="margin-top:12px;max-height:460px;" v-html="renderContent(viewArticleData.content||'', [])"></div>
+    </div>
+  </div>
+
+  <!-- ========== 导出 SEO 弹层 ========== -->
+  <div class="modal-mask" v-if="exportModal.open" @click.self="exportModal.open=false">
+    <div class="modal">
+      <span class="close" @click="exportModal.open=false">✕</span>
+      <h3>📄 SEO 静态页已生成</h3>
+      <div class="kv"><span class="k">文件名</span><span>{{ exportModal.slug }}</span></div>
+      <div class="kv"><span class="k">线上 URL</span><span>{{ exportModal.url || '（未配置站点域名）' }}</span></div>
+      <div class="kv"><span class="k">本地路径</span><span class="hint" style="word-break:break-all;">{{ exportModal.file }}</span></div>
+      <div class="btn-row">
+        <button @click="downloadHtml(exportModal.html, exportModal.slug)">⬇️ 下载 HTML</button>
+        <button class="ghost" @click="copyText(exportModal.html)">📋 复制源码</button>
+      </div>
+      <div class="hint" style="margin-top:12px;">把文件上传到你的服务器根目录，就能被百度抓取；再回「文章库」点推送即可提交收录。</div>
+    </div>
+  </div>
+
+  <!-- ========== 知识库文档查看 ========== -->
+  <!-- 回收站：删掉的文章可以捞回来 -->
+  <div class="modal-mask" v-if="trashOpen" @click.self="trashOpen=false">
+    <div class="modal">
+      <span class="close" @click="trashOpen=false">✕</span>
+      <h3>回收站</h3>
+      <div class="hint">删除的文章会先放到这里，可以随时恢复。确认不要了再清空。</div>
+      <table v-if="trashList.length" style="margin-top:16px;">
+        <thead><tr><th>标题</th><th>平台</th><th>删除时间</th><th style="width:190px;">操作</th></tr></thead>
+        <tbody>
+          <tr v-for="t in trashList" :key="t.id">
+            <td style="max-width:260px;">{{ t.title||'(无标题)' }}</td>
+            <td><span class="tag n">{{ platformName(t.platform) }}</span></td>
+            <td class="hint">{{ t._deleted_at }}</td>
+            <td>
+              <button class="ghost sm" @click="restoreArticle(t.id)">恢复</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty" style="padding:32px;">
+        <p>回收站是空的</p>
+      </div>
+      <div class="btn-row" v-if="trashList.length">
+        <button class="danger" @click="purgeTrash()">清空回收站</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="docDetail" @click.self="docDetail=null">
+    <div class="modal">
+      <span class="close" @click="docDetail=null">✕</span>
+      <h3>{{ docDetail.title }}</h3>
+      <div class="hint">{{ docDetail.tags }}</div>
+      <div class="result-box" style="margin-top:12px;max-height:420px;white-space:pre-wrap;">{{ docDetail.content }}</div>
+    </div>
+  </div>
+
+  <!-- ========== Toast ========== -->
+  <div class="toast-wrap">
+    <div v-for="(t,i) in toasts" :key="i" class="toast" :class="t.kind">{{ t.msg }}</div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
