@@ -32,7 +32,7 @@ PROVIDERS = [
         "key_env": "SILICONFLOW_API_KEY",
         "models": ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct"],
         "site": "https://cloud.siliconflow.cn",
-        "note": "一个 Key 用几十个开源模型，模型名要写「厂商/模型」全称",
+        "note": "一个 Key 用几十个开源模型，模型名要写「厂商/模型」全称；新用户送 ¥16 额度，控制台里标价 0 的模型可免费用",
     },
     {
         "key": "moonshot", "name": "月之暗面 Kimi", "short": "KM", "group": "cn",
@@ -42,13 +42,14 @@ PROVIDERS = [
         "site": "https://platform.moonshot.cn",
         "note": "长文本理解强，适合把长资料喂进去改写",
     },
+    # ★ 测试期首选：国内直连 + 有长期免费模型，注册只要手机号
     {
         "key": "zhipu", "name": "智谱 AI GLM", "short": "GL", "group": "cn",
         "api_base": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
         "key_env": "ZHIPU_API_KEY",
-        "models": ["glm-5.1", "glm-4-plus"],
+        "models": ["glm-4.5-flash", "glm-4.7-flash", "glm-4-flash", "glm-5.3"],
         "site": "https://open.bigmodel.cn",
-        "note": "有免费额度，中文表达自然",
+        "note": "★免费：glm-4.5-flash / glm-4.7-flash / glm-4-flash 都是 0 元，限 1 并发、忙时报 429 需重试；glm-5.3 是旗舰按量收费（约 ¥8/百万输入），别误选",
     },
     {
         "key": "dashscope", "name": "阿里云百炼（通义千问）", "short": "QW", "group": "cn",
@@ -114,7 +115,23 @@ PROVIDERS = [
         "key_env": "OPENROUTER_API_KEY",
         "models": ["deepseek/deepseek-chat"],
         "site": "https://openrouter.ai/keys",
-        "note": "一个 Key 调上百个模型，模型名格式「厂商/模型」",
+        "note": "一个 Key 调上百个模型，模型名格式「厂商/模型」；带 :free 后缀的模型免费（约 50 次/天）",
+    },
+    {
+        "key": "zai", "name": "Z.ai（智谱国际站）", "short": "ZA", "group": "global",
+        "api_base": "https://api.z.ai/api/paas/v4/chat/completions",
+        "key_env": "ZAI_API_KEY",
+        "models": ["glm-4.7-flash", "glm-4.5-flash"],
+        "site": "https://z.ai/model-api",
+        "note": "★只需邮箱注册，不用手机号也不用实名；glm-4.7-flash 永久 $0 免费（限 1 并发）。⚠️ 和国内 bigmodel.cn 的 Key 不通用，两边账号分开；国内访问速度可能不如国内站",
+    },
+    {
+        "key": "githubmodels", "name": "GitHub Models", "short": "GH", "group": "global",
+        "api_base": "https://models.github.ai/inference/chat/completions",
+        "key_env": "GITHUB_MODELS_API_KEY",
+        "models": ["openai/gpt-4.1", "openai/gpt-4o"],
+        "site": "https://github.com/settings/tokens",
+        "note": "有 GitHub 账号就能免费用 GPT 系：建 PAT 令牌时勾上 models:read 权限。限 150 次/天，单次输出上限 4K token（约 2500 字），长文会被截断",
     },
 
     # ---------------- 本地（完全免注册、免实名、不要网） ----------------
@@ -122,9 +139,9 @@ PROVIDERS = [
         "key": "ollama", "name": "本地 Ollama", "short": "OL", "group": "local",
         "api_base": "http://localhost:11434/v1/chat/completions",
         "key_env": "OLLAMA_API_KEY",
-        "models": ["qwen2.5:7b", "qwen2.5:14b"],
+        "models": ["qwen3:8b", "qwen3:4b"],
         "site": "https://ollama.com/download",
-        "note": "完全免费、不要 Key、不联网。先装 Ollama 并 ollama pull 一个模型",
+        "note": "★完全免费、不用注册、不联网。先装 Ollama 再 ollama pull qwen3:8b；8GB 显存跑 8b 最舒服（约 5GB）",
     },
     {
         "key": "lmstudio", "name": "本地 LM Studio", "short": "LM", "group": "local",

@@ -39,6 +39,7 @@ import writing
 import presets
 import readiness
 import access
+import distribute
 
 app = FastAPI(title="AI 内容中台（百度全量测试中）")
 
@@ -664,6 +665,50 @@ def api_push_article(aid: str):
         articles.update_status(aid, "pushed")
         webhooks.fire("article_pushed", {"article_id": aid, "url": url, "platform": "baidu"})
     return result
+
+# ---------- 一键分发（对标 ALQQ / 小火花：一次操作铺到多个平台）----------
+@app.get("/api/distribute/targets")
+def api_distribute_targets():
+    """可分发目标：自动通道（百度）+ 已绑定的账号。"""
+    return distribute.targets()
+
+@app.post("/api/distribute/preview")
+def api_distribute_preview(payload: dict = Body(None)):
+    """分发前预览：看看各平台会被改造成什么样。"""
+    d = payload or {}
+    return distribute.preview(d.get("article_id", ""), d.get("platform", ""),
+                              d.get("extra_tags", ""))
+
+@app.post("/api/distribute")
+def api_distribute(payload: dict = Body(None)):
+    """一键分发：把一篇文章铺到全部选中的目标。"""
+    d = payload or {}
+    return distribute.run(d.get("article_id", ""), d.get("targets") or [],
+                          d.get("extra_tags", ""))
+
+@app.get("/api/distribute/tasks")
+def api_distribute_tasks(batch: str = "", status: str = "", limit: int = 120):
+    return {"tasks": distribute.list_tasks(batch, status, limit),
+            "summary": distribute.summary()}
+
+@app.post("/api/distribute/{tid}/done")
+def api_distribute_done(tid: str, payload: dict = Body(None)):
+    """半自动任务标记为「已发布」。"""
+    return distribute.mark_done(tid, (payload or {}).get("url", ""))
+
+@app.post("/api/distribute/{tid}/pending")
+def api_distribute_pending(tid: str):
+    """撤销「已发布」标记。"""
+    return distribute.mark_pending(tid)
+
+@app.post("/api/distribute/{tid}/retry")
+def api_distribute_retry(tid: str):
+    """重试失败的自动任务。"""
+    return distribute.retry(tid)
+
+@app.delete("/api/distribute")
+def api_distribute_clear(batch: str = ""):
+    return distribute.clear(batch)
 
 # ---------- 统计数据（控制台 / 数据中心）----------
 @app.get("/api/stats")

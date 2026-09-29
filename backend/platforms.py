@@ -200,6 +200,44 @@ PLATFORMS = [
 ]
 
 
+# ---------- 发布格式规则（一键分发时按这里自动适配，对标小火花「自动适配各平台格式」）----------
+# 一篇稿子分发到 N 个平台，每个平台的要求都不一样：标题长度、标签数量、正文形态。
+# 这里定义规则，distribute.py 照着把同一篇稿子裁成各家"能直接粘进去"的形态。
+#   title_max  标题字数上限（超出自动裁，裁到最后一个完整词）
+#   body_max   正文形态的字数上限（0 = 不限；超了会裁到句末并在页面上提醒）
+#   tags       建议话题标签数（0 = 不要标签）
+#   body       markdown（保留结构）| plain（去格式，适合微博这类）| script（口播脚本）
+FORMAT = {
+    "baidu":       {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内，正文保留小标题"},
+    "toutiao":     {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内，段落要短"},
+    "baijiahao":   {"title_max": 40, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 8~40 字"},
+    "weixin":      {"title_max": 64, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 64 字内，正文建议配图"},
+    "zhihu":       {"title_max": 50, "body_max": 0,   "tags": 3,  "body": "markdown", "note": "可加 3 个话题"},
+    "xiaohongshu": {"title_max": 20, "body_max": 900, "tags": 5,  "body": "plain",    "note": "标题 20 字内！正文多换行，末尾挂 5 个话题"},
+    "weibo":       {"title_max": 30, "body_max": 110, "tags": 2,  "body": "plain",    "note": "整条 140 字内，带 1~2 个 #话题#"},
+    "douyin":      {"title_max": 55, "body_max": 200, "tags": 5,  "body": "script",   "note": "文案 55 字内，口播脚本另存"},
+    "kuaishou":    {"title_max": 55, "body_max": 200, "tags": 3,  "body": "script",   "note": "文案 55 字内"},
+    "shipinhao":   {"title_max": 22, "body_max": 300, "tags": 3,  "body": "script",   "note": "文案 22 字内（很短）"},
+    "bilibili":    {"title_max": 80, "body_max": 0,   "tags": 10, "body": "markdown", "note": "标题 80 字内，标签可挂 10 个"},
+    "sohu":        {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内"},
+    "wangyi":      {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内"},
+    "jianshu":     {"title_max": 50, "body_max": 0,   "tags": 4,  "body": "markdown", "note": "可加 4 个专题/标签"},
+    "qiehao":      {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内"},
+    "dayu":        {"title_max": 30, "body_max": 0,   "tags": 0,  "body": "markdown", "note": "标题 30 字内"},
+    "douban":      {"title_max": 50, "body_max": 0,   "tags": 3,  "body": "markdown", "note": "可加 3 个标签"},
+    "csdn":        {"title_max": 60, "body_max": 0,   "tags": 5,  "body": "markdown", "note": "可加 5 个标签，保留代码块"},
+    "xueqiu":      {"title_max": 40, "body_max": 0,   "tags": 2,  "body": "markdown", "note": "可加 2 个 $股票代码$ 标签"},
+}
+
+# 兜底规则：FORMAT 里没写的平台按这个来
+FORMAT_DEFAULT = {"title_max": 30, "body_max": 0, "tags": 0, "body": "markdown", "note": ""}
+
+
+def get_format(key):
+    """取某平台的发布格式规则（没有就用兜底）。"""
+    return FORMAT.get(key, FORMAT_DEFAULT)
+
+
 def get_platform(key):
     """按 key 取平台配置，找不到返回百度（兜底）。"""
     for p in PLATFORMS:
@@ -220,6 +258,7 @@ def list_platforms():
             "key": p["key"], "name": p["name"], "emoji": p["emoji"],
             "type": p["type"], "mode": p["mode"], "category": p["category"],
             "content": p["content"], "publish_url": p["publish_url"],
+            "format": get_format(p["key"]),   # 一键分发时按它适配标题/标签/正文
             "enabled": True,  # 全部可点；auto 才走真推送，semi 走半自动引导
         }
         for p in PLATFORMS

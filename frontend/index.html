@@ -324,6 +324,48 @@
   ::-webkit-scrollbar-thumb{background:#cbd5e1; border-radius:6px; border:3px solid transparent; background-clip:content-box;}
   ::-webkit-scrollbar-thumb:hover{background:#9aa8bb; background-clip:content-box;}
   ::selection{background:#cfe0ff; color:#0f172a;}
+  /* ---------- 一键分发 ---------- */
+  .dist-sec{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:500;color:var(--t1);margin:2px 0 10px;}
+  .dist-sec .hint{font-weight:400;color:var(--t3);}
+  .dist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;}
+  .dist-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;cursor:pointer;transition:border-color .15s, background .15s;margin:0;}
+  .dist-item:hover{border-color:var(--brand-line);}
+  .dist-item.on{background:var(--brand-soft);border-color:var(--brand-line);}
+  .dist-item.off{opacity:.55;cursor:not-allowed;}
+  .dist-item input[type="checkbox"]{width:auto;flex:none;margin:3px 0 0;}
+  .di-ico{font-size:16px;line-height:1.3;flex:none;}
+  .di-body{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .di-name{font-size:13px;font-weight:500;color:var(--t1);}
+  .di-sub{font-size:12px;color:var(--t3);line-height:1.45;}
+  .dist-group{margin-bottom:14px;}
+  .dg-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;
+    font-size:13px;font-weight:500;color:var(--t1);}
+  .dg-head .hint{font-weight:400;color:var(--t3);margin-left:8px;}
+  .dist-tasks{display:flex;flex-direction:column;gap:10px;}
+  .dist-task{border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;padding:12px 14px;}
+  .dist-task.st-done{border-left-color:var(--green);background:rgba(16,185,129,.05);}
+  .dist-task.st-failed{border-left-color:var(--red);background:rgba(239,68,68,.05);}
+  .dist-task .btn-row{margin-top:10px;}
+  .dt-head{display:flex;align-items:center;gap:6px;font-size:13px;}
+  .dt-plat{font-weight:500;color:var(--t1);}
+  .dt-acct{color:var(--t2);}
+  .dt-art{margin-left:auto;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dt-title{font-size:13px;color:var(--t1);margin:6px 0 2px;}
+  .dt-warn{font-size:12px;color:#b45309;margin-top:4px;}
+  .dt-url{font-size:12px;color:var(--t3);word-break:break-all;margin-top:5px;}
+  .btn-link{display:inline-flex;align-items:center;font-size:12px;color:var(--brand-text);
+    text-decoration:none;padding:5px 11px;border:1px solid var(--line);border-radius:8px;}
+  .btn-link:hover{border-color:var(--brand-line);}
+  .dist-preview{margin-top:14px;padding:14px;background:var(--surface-3);border-radius:12px;}
+  .pv-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    font-size:13px;font-weight:500;color:var(--t1);margin-bottom:10px;}
+  .pv-head .hint{font-weight:400;color:var(--t3);margin-left:8px;}
+  .pv-row{padding:9px 0;border-top:1px dashed var(--line);}
+  .pv-row:first-of-type{border-top:0;}
+  .pv-plat{font-size:13px;font-weight:500;color:var(--t1);}
+  .pv-plat .hint{font-weight:400;color:var(--t3);margin-left:8px;}
+  .pv-title{font-size:13px;color:var(--t1);margin:3px 0;}
 </style>
 </head>
 <body>
@@ -369,6 +411,7 @@
 
     <div class="nav-group" :class="{open:navOpen.publish}" @click="toggleGroup('publish')"><span>发布</span><span class="arrow"></span></div>
     <template v-if="navOpen.publish">
+      <div class="nav-item nav-sub" :class="{active:view==='distribute'}" @click="go('distribute')"><span class="nav-icon">🚀</span>一键分发<span class="badge" v-if="distSummary.pending">{{ distSummary.pending }}</span></div>
       <div class="nav-item nav-sub" :class="{active:view==='accounts'}" @click="go('accounts')"><span class="nav-icon">👥</span>多账号矩阵<span class="badge" v-if="stats.accounts_total">{{ stats.accounts_total }}</span></div>
       <div class="nav-item nav-sub" :class="{active:view==='indexcheck'}" @click="go('indexcheck')"><span class="nav-icon">🔍</span>收录与推送</div>
     </template>
@@ -635,9 +678,13 @@
           </div>
         </div>
 
-        <!-- ===== 写作配置（全部可自定义）===== -->
+        <!-- ===== 写作配置（默认收起，想调再展开）===== -->
         <div class="card" v-show="writeStep===2">
-          <h3><span class="bar"></span>写作配置<span class="sub">{{ writingSummary }}</span></h3>
+          <h3><span class="bar"></span>写作配置<span class="sub">{{ writingSummary }}</span>
+            <button class="gray sm" style="margin-left:14px;" @click="wcfgOpen=!wcfgOpen">{{ wcfgOpen ? '收起' : '展开调整' }}</button>
+          </h3>
+          <div class="hint" v-show="!wcfgOpen" style="margin-top:2px;">用当前配置直接点下面「开始生成文章」就行。想改风格、字数、受众，展开再调 —— 配置会自动记住，下次不用重选。</div>
+          <div v-show="wcfgOpen">
           <div class="cfg-grid">
             <div class="cfg-col">
               <label>文章风格</label>
@@ -699,11 +746,13 @@
               <div class="sw" :class="{on:wcfg.image_watermark}" @click="wcfg.image_watermark=!wcfg.image_watermark"></div>
             </div>
           </div>
+          </div>
         </div>
 
-        <!-- ===== 配图策略 + 模板 + 生成 ===== -->
+        <!-- ===== 生成（配图策略与模板跟随「写作配置」一起折叠）===== -->
         <div class="card" v-show="writeStep===2">
-          <h3><span class="bar"></span>配图策略<span class="sub">出稿后配图时用</span></h3>
+          <h3><span class="bar"></span>生成文章<span class="sub">配图策略与写作模板在「展开调整」里，不设也能出稿</span></h3>
+          <div v-show="wcfgOpen">
           <div class="grid2">
             <div><label>图片策略</label>
               <div class="seg">
@@ -722,6 +771,7 @@
           <label>写作模板（模板市场）</label>
           <select v-model="tplSel"><option value="">— 不用模板 —</option><option v-for="t in tplListForPlatform" :key="t.id" :value="t.id">{{ t.name }}（{{ t.category }}）</option></select>
           <div class="hint" style="margin-top:8px;">模板决定文章骨架，人设决定语气。两个都不选也能出稿，只是会更「通用」一些。</div>
+          </div>
 
           <div class="btn-row">
             <button class="gray" @click="writeStep=1">上一步</button>
@@ -1052,7 +1102,7 @@
       <div v-if="view==='articles'">
         <div class="page-head">
           <h2><span class="ico">📚</span>文章库</h2>
-          <p>已保存的稿件：导出 SEO 静态页、推送百度、定时提醒</p>
+          <p>已保存的稿件：一键分发到多个平台、导出 SEO 静态页、推送百度、定时提醒</p>
         </div>
         <div class="card">
           <h3><span class="bar"></span>全部文章
@@ -1060,7 +1110,7 @@
             <button class="gray sm" style="margin-left:14px;" @click="openTrash()">回收站</button>
           </h3>
           <table v-if="articles.length">
-            <thead><tr><th>标题</th><th>平台</th><th>状态</th><th>时间</th><th style="width:280px;">操作</th></tr></thead>
+            <thead><tr><th>标题</th><th>平台</th><th>状态</th><th>时间</th><th style="width:340px;">操作</th></tr></thead>
             <tbody>
               <tr v-for="a in articles" :key="a.id">
                 <td style="max-width:280px;">{{ a.title||'(无标题)' }}</td>
@@ -1068,6 +1118,7 @@
                 <td><span :class="statusCls(a.status)">{{ statusText(a.status) }}</span></td>
                 <td class="hint">{{ a.created_at }}</td>
                 <td>
+                  <button class="sm" @click="distFromArticle(a)">🚀 一键分发</button>
                   <button class="gray sm" @click="viewArticle(a)">查看</button>
                   <button class="ghost sm" @click="exportArticle(a)">导出 SEO 页</button>
                   <button class="ghost sm" @click="openPublishFromArticle(a)">推送</button>
@@ -1448,6 +1499,147 @@
         </div>
         <div class="card" v-if="!accounts.length">
           <div class="empty"><p>还没有绑定账号</p><div class="tip">账号只用于记录与提醒，不会替你登录（合规红线）</div></div>
+        </div>
+      </div>
+
+      <!-- ========== 一键分发 ========== -->
+      <div v-if="view==='distribute'">
+        <div class="page-head">
+          <h2><span class="ico">🚀</span>一键分发</h2>
+          <p>选一篇稿子 → 勾选目标 → 一次铺到所有平台。能自动的（百度）直接发完；社媒按各平台规则自动改好标题、标签、格式，你「复制并打开」两步就发完</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>第 1 步 · 选内容<span class="sub" v-if="distArticle">已选 {{ distArticleChars }} 字</span></h3>
+          <div class="grid2">
+            <div>
+              <label>从文章库选一篇</label>
+              <select v-model="distArticleId">
+                <option value="">— 请选择 —</option>
+                <option v-for="a in articles" :key="'da'+a.id" :value="a.id">{{ a.title || '(无标题)' }}</option>
+              </select>
+            </div>
+            <div>
+              <label>额外话题标签（可选）</label>
+              <input v-model="distTags" placeholder="逗号分隔，会加到各平台，如：南京保洁,上门服务" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="gray" @click="go('write')">✍️ 还没稿子？去写一篇</button>
+            <button class="ghost" v-if="distArticleId" :disabled="distPreviewLoading" @click="distPreview()">
+              {{ distPreviewLoading ? '生成中…' : '👁 预览已勾选平台的改造效果' }}
+            </button>
+          </div>
+          <div v-if="distPreviewOpen && distPreviewData.length" class="dist-preview">
+            <div class="pv-head">
+              <span>改造效果预览<span class="hint">同一篇稿子，各平台会变成什么样</span></span>
+              <button class="gray sm" @click="distPreviewOpen=false">收起</button>
+            </div>
+            <div v-for="it in distPreviewData" :key="'pv'+it.platform" class="pv-row">
+              <div class="pv-plat">{{ it.emoji }} {{ it.platform_name }}<span class="hint">{{ it.format_note }}</span></div>
+              <div class="pv-title">{{ it.title || '(无标题)' }}</div>
+              <div class="hint">标题 {{ it.title.length }}/{{ it.title_max }} 字 · 正文 {{ it.body_chars }} 字 · 标签 {{ it.tags.length }} 个</div>
+              <div class="dt-warn" v-for="(w,i) in (it.warnings||[])" :key="i">⚠️ {{ w }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>第 2 步 · 选目标
+            <span class="sub">已选 {{ distPicked.length }} 个</span>
+            <button class="ghost sm" style="margin-left:14px;" @click="distPickAll">全选</button>
+            <button class="gray sm" @click="distPickNone">清空</button>
+          </h3>
+
+          <div class="dist-sec">⚡ 自动通道<span class="hint">点一下就跑完，不用你管</span></div>
+          <div class="dist-grid">
+            <label v-for="t in distTargets.auto" :key="t.id" class="dist-item" :class="{off:!t.available, on:distPicked.includes(t.id)}">
+              <input type="checkbox" :value="t.id" v-model="distPicked" :disabled="!t.available" />
+              <span class="di-ico">{{ t.emoji }}</span>
+              <span class="di-body">
+                <span class="di-name">{{ t.name }}</span>
+                <span class="di-sub">{{ t.available ? '导出 SEO 静态页 + 主动推送' : t.reason }}</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="dist-sec">✋ 社媒账号<span class="hint">平台不允许代发（会封号），这里帮你把稿子改好，你点两下就发完</span></div>
+          <div v-if="distTargets.accounts.length">
+            <div v-for="g in distGroups" :key="g.platform" class="dist-group">
+              <div class="dg-head">
+                <span>{{ g.name }}<span class="hint">标题 {{ g.format.title_max }} 字内<template v-if="g.format.body_max"> · 正文 {{ g.format.body_max }} 字内</template></span></span>
+                <button class="ghost sm" @click="distPickGroup(g)">全选本组</button>
+              </div>
+              <div class="dist-grid">
+                <label v-for="a in g.items" :key="a.id" class="dist-item" :class="{on:distPicked.includes(a.id)}">
+                  <input type="checkbox" :value="a.id" v-model="distPicked" />
+                  <span class="di-ico">{{ a.emoji }}</span>
+                  <span class="di-body">
+                    <span class="di-name">{{ a.name }}<span v-if="a.is_default" class="tag g" style="margin-left:6px;">默认</span></span>
+                    <span class="di-sub">{{ a.note || '复制粘贴即可发布' }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty" style="padding:22px 0;">
+            <p>还没有绑定任何账号</p>
+            <div class="tip">先去「多账号矩阵」把你要发的号登记进来（只做记录与提醒，不替你登录）</div>
+            <div class="btn-row" style="justify-content:center;"><button class="gray sm" @click="go('accounts')">去绑定账号</button></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>第 3 步 · 分发</h3>
+          <div class="btn-row">
+            <button class="lg" :disabled="!distArticleId || !distPicked.length || distRunning" @click="runDistribute">
+              {{ distRunning ? '分发中…' : '🚀 一键分发（' + distPicked.length + ' 个目标）' }}
+            </button>
+            <span class="hint" v-if="!distArticleId">请先选一篇稿子</span>
+            <span class="hint" v-else-if="!distPicked.length">请至少勾选一个目标</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>分发队列
+            <span class="sub">{{ distSummary.pending }} 条待发布 · {{ distSummary.done }} 条已完成</span>
+            <button class="danger sm" style="margin-left:14px;" @click="clearDist">清空记录</button>
+          </h3>
+          <div v-if="distTasks.length" class="dist-tasks">
+            <div v-for="t in distTasks" :key="t.id" class="dist-task" :class="'st-'+t.status">
+              <div class="dt-head">
+                <span class="dt-plat">{{ t.platform_name }}</span>
+                <span class="dt-acct" v-if="t.account_name">· {{ t.account_name }}</span>
+                <span :class="t.status==='done'?'tag g':(t.status==='failed'?'tag r':'tag a')">{{ distStatusText(t.status) }}</span>
+                <span class="hint dt-art">{{ t.article_title }}</span>
+              </div>
+              <div v-if="t.status!=='done' && t.title">
+                <div class="dt-title">{{ t.title }}</div>
+                <div class="hint" v-if="t.tags && t.tags.length">标签：{{ t.tags.map(x=>'#'+x).join(' ') }}</div>
+                <div class="dt-warn" v-for="(w,i) in (t.warnings||[])" :key="i">⚠️ {{ w }}</div>
+              </div>
+              <div class="hint" v-if="t.detail">{{ t.detail }}</div>
+              <div class="dt-url" v-if="t.url">{{ t.url }}</div>
+              <div class="btn-row">
+                <template v-if="t.status!=='done' && t.kind==='semi'">
+                  <button class="sm" @click="distCopy(t)">📋 复制内容</button>
+                  <button class="gray sm" @click="distOpen(t)">🔗 打开发布页</button>
+                  <button class="ghost sm" @click="distDone(t)">✅ 标记已发布</button>
+                </template>
+                <template v-else-if="t.status==='failed' && t.kind==='auto'">
+                  <button class="gray sm" @click="distRetry(t)">重试</button>
+                </template>
+                <template v-else-if="t.status==='done'">
+                  <button class="ghost sm" v-if="t.kind==='semi'" @click="distUndone(t)">撤销标记</button>
+                  <a v-if="t.url" class="btn-link" :href="t.url" target="_blank" rel="noopener">查看结果</a>
+                </template>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty">
+            <p>队列是空的</p>
+            <div class="tip">分发后，每个目标的进度都会出现在这里</div>
+          </div>
         </div>
       </div>
 

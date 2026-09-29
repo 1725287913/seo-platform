@@ -53,10 +53,15 @@ def _call_model(info, system, user, temperature=0.8, timeout=90):
             timeout=timeout,
         )
         data = resp.json()
-        if "error" in data:
-            return {"error": "api_error",
-                    "message": data.get("error", {}).get("message", str(data))}
-        return {"content": data["choices"][0]["message"]["content"], "model": info["model_name"]}
+        # 有的厂商（智谱）出错时不用 error 字段，而是 {"code":500,"msg":"..."}，一并认出来
+        if not isinstance(data, dict) or "choices" not in data:
+            err = data.get("error") if isinstance(data, dict) else None
+            msg = (err.get("message") or str(err)) if isinstance(err, dict) else err
+            if not msg:
+                msg = (data.get("msg") if isinstance(data, dict) else None) or str(data)
+            return {"error": "api_error", "message": msg}
+        return {"content": data["choices"][0]["message"].get("content") or "",
+                "model": info["model_name"]}
     except Exception as e:
         return {"error": "request_failed", "message": str(e)}
 

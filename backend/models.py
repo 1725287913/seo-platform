@@ -176,10 +176,22 @@ def test_model(mid=None):
             headers["Authorization"] = f"Bearer {info['api_key']}"
         resp = httpx.post(info["api_base"], headers=headers,
                           json={"model": info["model_name"],
-                                "messages": [{"role": "user", "content": "回复 ok 即可"}], "max_tokens": 5},
+                                "messages": [{"role": "user", "content": "回复 ok 即可"}], "max_tokens": 64},
                           timeout=25)
-        if resp.status_code == 200:
-            return {"ok": True, "message": f"连接成功（{info['model_name']}）"}
-        return {"ok": False, "message": f"HTTP {resp.status_code}：{resp.text[:240]}"}
+        if resp.status_code != 200:
+            return {"ok": False, "message": f"HTTP {resp.status_code}：{resp.text[:240]}"}
+        # ⚠️ 有的厂商（智谱就是）把「404 / 鉴权失败」也包在 HTTP 200 里返回，
+        #    只看状态码会报出假的「连接成功」。必须 body 里真的有 choices 才算通。
+        try:
+            data = resp.json()
+        except Exception:
+            data = None
+        if not isinstance(data, dict) or "choices" not in data:
+            err = data.get("error") if isinstance(data, dict) else None
+            msg = (err.get("message") or str(err)) if isinstance(err, dict) else err
+            if not msg:
+                msg = (data.get("msg") if isinstance(data, dict) else None) or resp.text[:200]
+            return {"ok": False, "message": f"接口没返回有效回复：{msg}（检查接口地址和模型名）"}
+        return {"ok": True, "message": f"连接成功（{info['model_name']}）"}
     except Exception as e:
         return {"ok": False, "message": f"连不上（{type(e).__name__}）：{str(e)[:200]}"}

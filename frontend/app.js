@@ -98,7 +98,7 @@ createApp({
   setup(){
     /* ---------- 基础 ---------- */
     const view = ref('dashboard');
-    const navOpen = reactive({ create:true, smart:false, auto:false, publish:false, system:false });
+    const navOpen = reactive({ create:true, smart:false, auto:false, publish:true, system:false });
     const toggleGroup = (k)=>{ navOpen[k] = !navOpen[k]; };
     const toasts = ref([]);
     function toast(msg, kind='ok'){
@@ -165,6 +165,7 @@ createApp({
       if(v==='write'||v==='batch') loadGenOptions();
       if(v==='products') loadProducts();
       if(v==='keys') loadProviders();
+      if(v==='distribute'){ loadDistTargets(); loadDistTasks(); loadArticles(); }
     }
 
     /* ---------- 数据中心 ---------- */
@@ -382,6 +383,8 @@ createApp({
     });
     // 改哪一项都自动记下来，下次打开还是这套
     watch(wcfg, ()=>{ try{ localStorage.setItem(W_KEY, JSON.stringify(wcfg)); }catch(e){} }, {deep:true});
+    // 写作配置默认收起：一屏 15 个控件太劝退，改成「需要调才展开」
+    const wcfgOpen = ref(false);
 
     // 取某一组配置的候选项 / 取当前值的人话说明
     const optItems = (key)=> ((wOpts.value.find(x=>x.key===key) || {}).items) || [];
@@ -500,9 +503,26 @@ createApp({
           writing: {...wcfg} })});
       coverResult.value = await r.json();
     }
+    // 复制到剪贴板：优先 Clipboard API，不可用时退回 textarea + execCommand。
+    // 注意 navigator.clipboard 只在 https 或 localhost 下存在，局域网 IP 访问时是没有的，
+    // 直接调用会抛 TypeError（而且 .catch 抓不到同步异常）。
     const copyText = (t)=>{
       if(!t) return;
-      navigator.clipboard.writeText(t).then(()=> toast('已复制 ✅')).catch(()=> toast('复制失败，请手动选择', 'err'));
+      const fallback = ()=>{
+        try{
+          const ta = document.createElement('textarea');
+          ta.value = t;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand && document.execCommand('copy');
+          document.body.removeChild(ta);
+          toast(ok ? '已复制 ✅' : '复制失败，请手动选中文字复制', ok ? 'ok' : 'err');
+        }catch(e){ toast('复制失败，请手动选中文字复制', 'err'); }
+      };
+      if(!navigator.clipboard || !navigator.clipboard.writeText){ fallback(); return; }
+      navigator.clipboard.writeText(t).then(()=> toast('已复制 ✅')).catch(fallback);
     };
     function copyMarkdown(t){ copyText(t); }
     async function copyRich(t){
@@ -1098,13 +1118,170 @@ createApp({
       toast('已跳到「定时计划」，填时间即可', 'info');
     }
 
+    /* ---------- 一键分发（对标 ALQQ / 小火花：一次操作铺到多个平台）---------- */
+    const distTargets = ref({ auto: [], accounts: [] });
+    const distPicked = ref([]);          // 勾选的目标 id 列表
+    const distArticleId = ref('');
+    const distTags = ref('');            // 额外话题标签，会加到各平台
+    const distTasks = ref([]);
+    const distSummary = ref({ total: 0, done: 0, pending: 0, failed: 0 });
+    const distRunning = ref(false);
+    const distPreviewOpen = ref(false);
+    const distPreviewData = ref([]);
+    const distPreviewLoading = ref(false);
+
+    const distArticle = computed(()=> articles.value.find(a=>a.id===distArticleId.value) || null);
+    const distArticleChars = computed(()=> (distArticle.value && distArticle.value.content || '').length);
+    const distAll = computed(()=> distTargets.value.auto.concat(distTargets.value.accounts));
+
+    // 已勾选目标涉及到的平台（预览按平台去重）
+    const distPickedPlatforms = computed(()=>{
+      const s = new Set();
+      distPicked.value.forEach(id=>{
+        const t = distAll.value.find(x=>x.id===id);
+        if(t) s.add(t.platform);
+      });
+      return [...s];
+    });
+
+    // 账号按平台分组，方便「全选本组」
+    const distGroups = computed(()=>{
+      const map = new Map();
+      for(const a of distTargets.value.accounts){
+        if(!map.has(a.platform))
+          map.set(a.platform, { platform:a.platform, name:a.platform_name, format:a.format||{}, items:[] });
+        map.get(a.platform).items.push(a);
+      }
+      return [...map.values()];
+    });
+
+    async function loadDistTargets(){
+      try{
+        const r = await fetch('/api/distribute/targets');
+        const d = await r.json();
+        distTargets.value = { auto:d.auto||[], accounts:d.accounts||[] };
+      }catch(e){ toast('分发目标加载失败：'+e, 'err'); }
+    }
+
+    async function loadDistTasks(){
+      try{
+        const r = await fetch('/api/distribute/tasks?limit=60');
+        const d = await r.json();
+        distTasks.value = d.tasks || [];
+        distSummary.value = d.summary || { total:0, done:0, pending:0, failed:0 };
+      }catch(e){ /* 静默 */ }
+    }
+
+    function distPickAll(){
+      distPicked.value = distTargets.value.auto.filter(t=>t.available).map(t=>t.id)
+        .concat(distTargets.value.accounts.map(a=>a.id));
+    }
+    function distPickNone(){ distPicked.value = []; }
+    function distPickGroup(g){
+      const ids = g.items.map(a=>a.id);
+      if(ids.every(i=>distPicked.value.includes(i)))
+        distPicked.value = distPicked.value.filter(i=>!ids.includes(i));
+      else
+        distPicked.value = [...new Set(distPicked.value.concat(ids))];
+    }
+
+    async function runDistribute(){
+      if(!distArticleId.value || !distPicked.value.length) return;
+      distRunning.value = true;
+      try{
+        const r = await fetch('/api/distribute', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ article_id:distArticleId.value,
+                                 targets:distPicked.value, extra_tags:distTags.value })
+        });
+        const d = await r.json();
+        if(d.error){ toast(d.message || '分发失败', 'err'); }
+        else{
+          toast('已分发到 ' + d.count + ' 个目标（自动的已跑完，社媒待你确认）');
+          await loadDistTasks();
+          loadStats();
+        }
+      }catch(e){ toast('分发失败：'+e, 'err'); }
+      finally{ distRunning.value = false; }
+    }
+
+    async function distPreview(){
+      if(!distArticleId.value) return;
+      const plats = distPickedPlatforms.value;
+      if(!plats.length){ toast('先勾选要分发的目标，才知道要预览哪些平台', 'err'); return; }
+      distPreviewLoading.value = true;
+      try{
+        const rs = await Promise.all(plats.map(p=>
+          fetch('/api/distribute/preview', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ article_id:distArticleId.value, platform:p, extra_tags:distTags.value })
+          }).then(x=>x.json())
+        ));
+        distPreviewData.value = rs.reduce((acc,d)=> acc.concat(d.items||[]), []);
+        distPreviewOpen.value = true;
+      }catch(e){ toast('预览失败：'+e, 'err'); }
+      finally{ distPreviewLoading.value = false; }
+    }
+
+    // 复制内容 → 打开发布页：多数平台发布框支持直接粘贴，两步发完
+    function distCopy(t){ copyText(t.copy_text || t.body || ''); }
+    function distOpen(t){
+      distCopy(t);
+      if(t.publish_url) window.open(t.publish_url, '_blank', 'noopener');
+      else toast('这个平台没登记发布地址，去「多账号矩阵」补上主页链接', 'err');
+    }
+
+    async function distDone(t){
+      try{
+        const r = await fetch('/api/distribute/'+t.id+'/done', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+        const d = await r.json();
+        if(d.error) toast(d.message, 'err');
+        else { toast('已标记为发布完成'); await loadDistTasks(); loadStats(); }
+      }catch(e){ toast('操作失败：'+e, 'err'); }
+    }
+    async function distUndone(t){
+      try{ await fetch('/api/distribute/'+t.id+'/pending', {method:'POST'}); }
+      catch(e){}
+      await loadDistTasks();
+    }
+    async function distRetry(t){
+      try{
+        const r = await fetch('/api/distribute/'+t.id+'/retry', {method:'POST'});
+        const d = await r.json();
+        toast(d.error ? (d.message||'重试失败') : '已重试', d.error ? 'err' : 'ok');
+      }catch(e){ toast('重试失败：'+e, 'err'); }
+      await loadDistTasks();
+    }
+    async function clearDist(){
+      if(!confirm('清空所有分发记录？（已发布的文章不受影响）')) return;
+      try{ await fetch('/api/distribute', {method:'DELETE'}); }catch(e){}
+      await loadDistTasks();
+      toast('分发记录已清空');
+    }
+    function distStatusText(s){
+      return { pending:'待发布', done:'已完成', failed:'失败' }[s] || s;
+    }
+
+    // 从文章库直接跳过来：带上稿子，并默认勾好「自动通道 + 各平台默认账号」，
+    // 这样一进页面就能直接点「一键分发」，不用再手点一遍
+    async function distFromArticle(a){
+      distArticleId.value = a.id;
+      distPreviewOpen.value = false;
+      await loadDistTargets();
+      distPicked.value = distTargets.value.auto.filter(t=>t.available).map(t=>t.id)
+        .concat(distTargets.value.accounts.filter(x=>x.is_default).map(x=>x.id));
+      view.value = 'distribute';
+      loadDistTasks();
+    }
+
     /* ---------- 初始化 ---------- */
     onMounted(async ()=>{
       const p = await fetch('/api/platforms'); platforms.value = (await p.json()).platforms || [];
       await Promise.all([loadStats(), loadArticles(), loadModels(), loadTemplates(), loadPersonas(),
         loadTopics(), loadSnippets(), loadKeywords(), loadDocs(), loadAccounts(), loadSchedule(),
         loadHooks(), loadWords(), loadKeys(), loadConfig(), loadDatacenter(), loadProducts(),
-        loadProviders(), loadWritingOptions(), loadPresets()]);
+        loadProviders(), loadWritingOptions(), loadPresets(), loadDistTasks()]);
     });
 
     return {
@@ -1114,10 +1291,17 @@ createApp({
       themeMode, themeLabel, themeOpen, themeOptions, setTheme, toggleThemeMenu,
       // 数据中心
       dcFilter, dc, loadDatacenter, resetDc, dcArtPoints, dcPushPoints, dcMaxY,
+      // 一键分发
+      distTargets, distPicked, distArticleId, distTags, distTasks, distSummary, distRunning,
+      distArticle, distArticleChars, distGroups, distPickedPlatforms,
+      loadDistTargets, loadDistTasks, distPickAll, distPickNone, distPickGroup,
+      runDistribute, distPreview, distPreviewOpen, distPreviewData, distPreviewLoading,
+      distCopy, distOpen, distDone, distUndone, distRetry, clearDist, distStatusText,
+      distFromArticle,
       // 写作台
       writeStep, aiReady,
       // 写作配置 / 预设 / 百度就绪诊断
-      wOpts, wcfg, optItems, optNote, writingSummary, loadWritingOptions,
+      wOpts, wcfg, optItems, optNote, writingSummary, loadWritingOptions, wcfgOpen,
       presetList, presetSel, applyPreset, promptSavePreset, delPreset,
       readiness, rdLoading, loadReadiness, rdMark,
       trashOpen, trashList, openTrash, loadTrash, restoreArticle, purgeTrash,
