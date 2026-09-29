@@ -398,6 +398,24 @@ def clear(batch=""):
     return {"ok": True}
 
 
+def remove(tid):
+    """删掉队列里的单条任务（用户手动清理某一条，不影响其他）。"""
+    arr = _read()
+    left = [t for t in arr if t.get("id") != tid]
+    if len(left) == len(arr):
+        return {"ok": False, "message": "没找到这条分发任务"}
+    _write(left)
+    return {"ok": True, "removed": tid}
+
+
+def purge_done():
+    """一键清掉所有「已完成」的任务，留下还要处理的。"""
+    arr = _read()
+    left = [t for t in arr if t.get("status") != "done"]
+    _write(left)
+    return {"ok": True, "removed": len(arr) - len(left)}
+
+
 def summary():
     """给仪表盘用的分发统计。"""
     arr = _read()

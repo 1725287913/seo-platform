@@ -9,6 +9,7 @@ os.makedirs(os.path.join(os.path.dirname(__file__), "data"), exist_ok=True)
 
 import base64
 from fastapi import Body, FastAPI
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -190,7 +191,13 @@ class ImageIn(BaseModel):
     keyword: str
     platform: str = "baidu"
     article_text: str = ""
+    size: str = ""         # 留空按平台自动选比例
     writing: dict = {}     # 写作配置里的「图片策略 / 配图密度」
+
+class AssistIn(BaseModel):
+    text: str = ""
+    mode: str = "polish"
+    instruction: str = ""
 
 class TopicIn(BaseModel):
     keyword: str
@@ -517,9 +524,40 @@ def api_images(i: ImageIn):
     cfg = config.get_config(mask_secrets=False)
     return images.generate_cover(
         i.keyword, i.platform, i.article_text,
-        cfg["IMAGE_API_BASE"], cfg["IMAGE_API_KEY"], cfg["IMAGE_MODEL"],
-        note_cfg=i.writing,
+        cfg.get("IMAGE_API_BASE", ""), cfg.get("IMAGE_API_KEY", ""), cfg.get("IMAGE_MODEL", ""),
+        size=i.size, note_cfg=i.writing,
     )
+
+@app.get("/api/images/file/{name}")
+def api_image_file(name: str):
+    """读取已生成的配图。只认 data/images 下的文件名，挡掉目录穿越。"""
+    safe = os.path.basename(name or "")
+    path = os.path.join(images.img_dir(), safe)
+    if not safe or not os.path.isfile(path):
+        return JSONResponse({"error": "not_found", "name": safe}, status_code=404)
+    return FileResponse(path)
+
+@app.get("/api/images/list")
+def api_image_list(limit: int = 60):
+    """已生成的配图列表（按时间倒序），供选图/复用。"""
+    d = images.img_dir()
+    files = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))]
+    files.sort(key=lambda f: os.path.getmtime(os.path.join(d, f)), reverse=True)
+    return {"images": [{"url": "/api/images/file/" + f, "name": f,
+                        "size": os.path.getsize(os.path.join(d, f)),
+                        "created_at": __import__("time").strftime(
+                            "%Y-%m-%d %H:%M", __import__("time").localtime(
+                                os.path.getmtime(os.path.join(d, f))))}
+                       for f in files[:max(1, limit)]]}
+
+# ---------- AI 助手（文章创作页：润色 / 扩写 / 精简 / 去 AI 味 / 续写 / 起标题）----------
+@app.post("/api/assist")
+def api_assist(a: AssistIn):
+    return generate.assist(a.text, a.mode, a.instruction)
+
+@app.get("/api/assist/modes")
+def api_assist_modes():
+    return {"modes": [{"key": k, "name": v[:14]} for k, v in generate.ASSIST_MODES.items()]}
 
 # ---------- 热点选题 ----------
 @app.get("/api/topics")
@@ -706,8 +744,19 @@ def api_distribute_retry(tid: str):
     """重试失败的自动任务。"""
     return distribute.retry(tid)
 
+@app.post("/api/distribute/purge-done")
+def api_distribute_purge_done():
+    """只清掉「已完成」的任务，留下还要处理的。"""
+    return distribute.purge_done()
+
+@app.delete("/api/distribute/{tid}")
+def api_distribute_remove(tid: str):
+    """删掉队列里的单条任务。"""
+    return distribute.remove(tid)
+
 @app.delete("/api/distribute")
 def api_distribute_clear(batch: str = ""):
+    """清空全部分发记录。"""
     return distribute.clear(batch)
 
 # ---------- 统计数据（控制台 / 数据中心）----------

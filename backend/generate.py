@@ -168,6 +168,39 @@ def _used_writing(cfg):
     return "、".join(parts)
 
 
+# ---------- 文章创作页的 AI 助手：对自己写的文字做二次加工 ----------
+ASSIST_MODES = {
+    "polish":   "把下面这段文字润色通顺：保持原意与全部信息，不要新增事实，不要改标题层级",
+    "expand":   "把下面这段文字扩写得更充实：补充具体细节、数字、例子，信息密度要高，禁止写空话套话",
+    "shorten":  "把下面这段文字精简：删掉重复与空话，保留全部关键信息",
+    "deai":     "去掉下面这段文字的『AI 味』：删掉套路词与排比口号，替换成具体细节和口语化表达，原意不变",
+    "seo":      "把下面这段文字改得更符合搜索引擎习惯：核心关键词自然融入标题与小标题，段落清晰，但不要堆砌关键词",
+    "continue": "接着下面这段文字继续往下写，保持同样的语气与风格，不要重复已有内容",
+    "title":    "根据下面这段文字，给出 5 个标题：一个一行，适合中文搜索与社媒，直接输出标题本身",
+    "outline":  "根据下面这段文字，整理出一份文章大纲：用 Markdown 的 ## 二级标题列出来，每条后面用一句话说明要写什么",
+}
+
+
+def assist(text, mode="polish", instruction=""):
+    """对用户自己写的文字做润色/扩写/精简/去AI味/续写/起标题。"""
+    info, err = _resolve_or_error(None)
+    if err:
+        return err
+    if not (text or "").strip():
+        return {"error": "empty", "message": "先把要处理的文字填进来"}
+
+    task = ASSIST_MODES.get(mode) or ASSIST_MODES["polish"]
+    system = "你是资深中文内容编辑。直接输出处理后的文字本身，不要解释、不要加任何前后缀说明。"
+    user = f"{task}：\n\n{text}"
+    if instruction:
+        user += f"\n\n额外要求：{instruction}"
+
+    out = _call_model(info, system, user, temperature=0.7)
+    if out.get("error"):
+        return out
+    return {"content": out.get("content") or "", "model": out.get("model"), "mode": mode}
+
+
 def generate_social(kind, platform, keyword, model_id=None, real_data="", account="",
                     writing_cfg=None):
     """生成社媒短内容。kind: post(动态图文) / video(视频脚本)。"""

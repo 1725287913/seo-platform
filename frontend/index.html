@@ -366,6 +366,38 @@
   .pv-plat{font-size:13px;font-weight:500;color:var(--t1);}
   .pv-plat .hint{font-weight:400;color:var(--t3);margin-left:8px;}
   .pv-title{font-size:13px;color:var(--t1);margin:3px 0;}
+  /* 操作列：多个按钮必须排成一行。换行会让表格看起来像坏了 */
+  .ops{display:flex; align-items:center; gap:6px; flex-wrap:nowrap; white-space:nowrap;}
+  .ops button{flex:none;}
+  /* 固定布局 + 标题省略号：长标题不会把操作列挤到换行 */
+  .art-table{table-layout:fixed;}
+  .art-table .art-title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+  /* ---------- 配图结果 ---------- */
+  .cover-wrap{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;}
+  .cover-img{width:260px; max-width:100%; border-radius:12px; border:1px solid var(--line); display:block;}
+  .cover-side{display:flex; flex-direction:column; gap:8px; align-items:flex-start;}
+
+  /* ---------- 文章创作（自写编辑器）---------- */
+  .ed-bar{display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    padding:10px 12px; margin-bottom:10px; border:1px solid var(--line);
+    border-radius:10px; background:var(--surface-2);}
+  .ed-bar button{padding:5px 11px; font-size:12.5px; border-radius:7px;}
+  .ed-bar .ed-sep{width:1px; height:18px; background:var(--line); margin:0 2px;}
+  .ed-area{width:100%; min-height:420px; padding:16px 18px; font-size:15px; line-height:1.9;
+    border:1px solid var(--line); border-radius:12px; background:var(--surface);
+    color:var(--t1); resize:vertical; font-family:inherit;}
+  .ed-area:focus{outline:none; border-color:var(--brand-line);}
+  .ed-preview{min-height:420px; max-height:none;}
+  .ed-preview img{max-width:100%; border-radius:10px; margin:10px 0;}
+  .ed-preview blockquote{margin:10px 0; padding:6px 14px; border-left:3px solid var(--brand-line);
+    color:var(--t2); background:var(--surface-2); border-radius:0 8px 8px 0;}
+  .ed-preview hr{border:none; border-top:1px solid var(--line); margin:18px 0;}
+  .ed-preview code{background:var(--surface-3); padding:1px 6px; border-radius:5px; font-size:.92em;}
+  .ed-preview pre{background:var(--surface-3); padding:12px 14px; border-radius:10px; overflow:auto;}
+  /* 实时预览：编辑区与预览区并排，改完立刻看到效果 */
+  .ed-split{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;}
+  @media (max-width:1180px){ .ed-split{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -384,6 +416,7 @@
     <div class="nav-group" :class="{open:navOpen.create}" @click="toggleGroup('create')"><span>创作</span><span class="arrow"></span></div>
     <template v-if="navOpen.create">
       <div class="nav-item nav-sub" :class="{active:view==='write'}" @click="go('write')"><span class="nav-icon">✍️</span>AI 写作</div>
+      <div class="nav-item nav-sub" :class="{active:view==='create'}" @click="go('create')"><span class="nav-icon">📝</span>文章创作</div>
       <div class="nav-item nav-sub" :class="{active:view==='batch'}" @click="go('batch')"><span class="nav-icon">⚡</span>批量创作</div>
       <div class="nav-item nav-sub" :class="{active:view==='keywords'}" @click="go('keywords')"><span class="nav-icon">🔑</span>关键词库<span class="badge" v-if="stats.keywords_total">{{ stats.keywords_total }}</span></div>
       <div class="nav-item nav-sub" :class="{active:view==='products'}" @click="go('products')"><span class="nav-icon">📦</span>产品库<span class="badge" v-if="stats.products_total">{{ stats.products_total }}</span></div>
@@ -800,20 +833,42 @@
             </h3>
             <div class="result-box" v-html="rendered"></div>
             <div class="btn-row">
-              <button class="ok" @click="saveArticle">保存草稿</button>
-              <button @click="openPublish">发布 / 推送百度</button>
+              <button class="lg" @click="distFromDraft">🚀 一键分发到多平台</button>
+              <button class="ok" @click="saveArticle">存进文章库</button>
               <button class="ghost" @click="detect">违禁词检测</button>
-              <button class="ghost" @click="makeCover">配图方案</button>
+              <button class="ghost" :disabled="coverLoading" @click="makeCover">{{ coverLoading ? '出图中…' : '🖼 生成配图' }}</button>
               <button class="ghost" @click="copyMarkdown(genResult)">复制 Markdown</button>
               <button class="ghost" @click="copyRich(genResult)">复制富文本</button>
+              <button class="gray" @click="genToCreate">✍️ 自己改一改</button>
               <button class="gray" :disabled="genLoading" @click="generate">重新生成</button>
+            </div>
+            <div class="hint" style="margin-top:10px;">
+              「一键分发」会自动先把这篇存进文章库，再跳到分发页帮你勾好目标 —— 不用先保存草稿。想手工润色就点「自己改一改」。
             </div>
           </div>
 
           <div class="card" v-if="coverResult">
-            <h3><span class="bar"></span>配图方案</h3>
-            <div v-if="coverResult.prompt" class="result-box" style="max-height:220px;"><b>提示词：</b>{{ coverResult.prompt }}<div v-if="coverResult.image_url" style="margin-top:10px;"><img :src="coverResult.image_url" style="max-width:100%;border-radius:8px;" /></div></div>
-            <div v-else class="msg err">{{ coverResult.message || JSON.stringify(coverResult) }}</div>
+            <h3><span class="bar"></span>配图
+              <span class="sub">{{ coverResult.image_url ? (coverResult.local ? '已存到本机 data/images' : '远程图片') : '仅生成提示词' }}</span>
+              <button class="gray sm" style="margin-left:14px;" :disabled="coverLoading" @click="makeCover">{{ coverLoading ? '出图中…' : '再生成一张' }}</button>
+            </h3>
+            <div v-if="coverResult.image_url" class="cover-wrap">
+              <img class="cover-img" :src="coverResult.image_url" alt="封面图" />
+              <div class="cover-side">
+                <a class="btn-link" :href="coverResult.image_url" target="_blank" rel="noopener">🔍 看原图</a>
+                <button class="ghost sm" @click="downloadImage(coverResult.image_url)">⬇ 下载图片</button>
+                <button class="ghost sm" @click="copyText(absUrl(coverResult.image_url))">📋 复制图片链接</button>
+                <button class="ghost sm" @click="coverToBody">↧ 插入正文末尾</button>
+                <div class="hint">尺寸 {{ coverResult.size }}</div>
+                <div class="hint" v-if="genResult">存进文章库时会自动记到封面字段</div>
+              </div>
+            </div>
+            <div v-else class="msg err">{{ coverResult.note || coverResult.message }}</div>
+            <details style="margin-top:12px;" v-if="coverResult.prompt">
+              <summary class="hint" style="cursor:pointer;">查看 / 复制提示词</summary>
+              <div class="result-box" style="max-height:170px;margin-top:8px;">{{ coverResult.prompt }}</div>
+            </details>
+            <div class="hint" style="margin-top:8px;">{{ coverResult.note }}</div>
           </div>
         </div>
       </div>
@@ -1109,20 +1164,21 @@
             <span class="sub">{{ articles.length }} 篇</span>
             <button class="gray sm" style="margin-left:14px;" @click="openTrash()">回收站</button>
           </h3>
-          <table v-if="articles.length">
-            <thead><tr><th>标题</th><th>平台</th><th>状态</th><th>时间</th><th style="width:340px;">操作</th></tr></thead>
+          <table class="art-table" v-if="articles.length">
+            <thead><tr><th style="width:42%;">标题</th><th style="width:12%;">平台</th><th style="width:12%;">状态</th><th style="width:12%;">时间</th><th style="width:22%;">操作</th></tr></thead>
             <tbody>
               <tr v-for="a in articles" :key="a.id">
-                <td style="max-width:280px;">{{ a.title||'(无标题)' }}</td>
+                <td class="art-title" :title="a.title||'(无标题)'">{{ a.title||'(无标题)' }}</td>
                 <td><span class="tag n">{{ platformName(a.platform) }}</span></td>
                 <td><span :class="statusCls(a.status)">{{ statusText(a.status) }}</span></td>
                 <td class="hint">{{ a.created_at }}</td>
                 <td>
-                  <button class="sm" @click="distFromArticle(a)">🚀 一键分发</button>
-                  <button class="gray sm" @click="viewArticle(a)">查看</button>
-                  <button class="ghost sm" @click="exportArticle(a)">导出 SEO 页</button>
-                  <button class="ghost sm" @click="openPublishFromArticle(a)">推送</button>
-                  <button class="danger sm" @click="delArticle(a.id)">删</button>
+                  <div class="ops">
+                    <button class="sm" @click="distFromArticle(a)">🚀 一键分发</button>
+                    <button class="gray sm" @click="viewArticle(a)">查看</button>
+                    <button class="ghost sm" @click="exportArticle(a)">导出</button>
+                    <button class="danger sm" @click="delArticle(a.id)">删</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1444,7 +1500,31 @@
       <div v-if="view==='accounts'">
         <div class="page-head">
           <h2><span class="ico">👥</span>多账号矩阵</h2>
-          <p>同一平台可绑定多个账号并设默认；账号名与「账号定位」一致时出稿自动套人设。「发布预设」记录该账号每次发布都要填的固定项（标签/分类/可见性/封面）</p>
+          <p>绑定账号 = 告诉平台「这个平台我有哪几个号」，一键分发时按号生成对应的稿子和预设，发完还能记录链接</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>绑定账号到底有什么用</h3>
+          <div class="grid2">
+            <div>
+              <div style="font-weight:600;margin-bottom:8px;">它会体现在这四个地方</div>
+              <div class="hint" style="line-height:2.1;">
+                ① <b>一键分发</b>：勾选时按平台分组出现，一个号 = 一个分发目标<br>
+                ② <b>发布预设</b>：这个号每次发布都要填的固定项（标签 / 分类 / 可见性 / 封面），分发时自动带上<br>
+                ③ <b>账号定位</b>：账号名和「账号定位」里的一致时，出稿自动套用该号的人设语气<br>
+                ④ <b>记录与统计</b>：发完标记「已发布」，队列里留痕，数据中心按平台汇总
+              </div>
+            </div>
+            <div>
+              <div style="font-weight:600;margin-bottom:8px;">它<b>不会</b>做的事</div>
+              <div class="hint" style="line-height:2.1;">
+                · 不会替你登录、不会拿你的 Cookie<br>
+                · 不会自动发帖到小红书 / 微博 / 抖音等社媒（违反平台规则，会封号）<br>
+                · 不会读取你的私信、粉丝、后台数据<br>
+                <b>所以「主页链接」只用来点开跳转，不是授权凭证。</b>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="card">
           <h3><span class="bar"></span>添加账号</h3>
@@ -1502,11 +1582,146 @@
         </div>
       </div>
 
+      <!-- ========== 文章创作（自己写 / 粘贴 / AI 帮改）========== -->
+      <div v-if="view==='create'">
+        <div class="page-head">
+          <h2><span class="ico">📝</span>文章创作</h2>
+          <p>自己写、从别处粘贴，或让 AI 帮你润色。写完直接一键分发到各平台，也能存进文章库</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>基本信息
+            <span class="sub">{{ cf.body.length }} 字</span>
+          </h3>
+          <div class="grid3">
+            <div><label>文章标题</label><input v-model="cf.title" placeholder="写标题，或去下面「AI 帮改」让 AI 起标题" /></div>
+            <div><label>目标平台</label>
+              <select v-model="cf.platform"><option v-for="p in platforms" :key="'cfp'+p.key" :value="p.key">{{ p.emoji }} {{ p.name }}</option></select>
+            </div>
+            <div><label>关键词（可选，用于 SEO 与配图）</label><input v-model="cf.keyword" placeholder="如：南京办公室除甲醛" /></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>正文<span class="sub">Markdown 排版，右侧随时看效果</span>
+            <div class="seg" style="margin-left:auto;">
+              <div class="seg-i" :class="{on:cfTab==='edit'}" @click="cfTab='edit'">编辑</div>
+              <div class="seg-i" :class="{on:cfTab==='preview'}" @click="cfTab='preview'">预览</div>
+            </div>
+          </h3>
+
+          <div class="ed-bar" v-show="cfTab==='edit'">
+            <button class="gray" @click="mdWrap('## ')">H2 小节</button>
+            <button class="gray" @click="mdWrap('### ')">H3</button>
+            <span class="ed-sep"></span>
+            <button class="gray" @click="mdWrap('**','**')">粗体</button>
+            <button class="gray" @click="mdWrap('*','*')">斜体</button>
+            <span class="ed-sep"></span>
+            <button class="gray" @click="mdLine('- ')">项目列表</button>
+            <button class="gray" @click="mdLine('1. ')">编号</button>
+            <button class="gray" @click="mdLine('> ')">引用</button>
+            <span class="ed-sep"></span>
+            <button class="gray" @click="mdLink">链接</button>
+            <button class="gray" @click="mdImage">图片</button>
+            <button class="gray" @click="mdHr">分隔线</button>
+            <span class="ed-sep"></span>
+            <button class="gray" @click="cfTab='preview'">👁 看效果</button>
+          </div>
+
+          <textarea v-show="cfTab==='edit'" ref="cfArea" class="ed-area" v-model="cf.body"
+            @keydown.tab.prevent="cfTabKey"
+            placeholder="在这里写正文，或从别处直接粘贴（WPS / Word / 网页里的文字都可以）。
+
+支持 Markdown：
+  ## 二级标题      **粗体**      - 项目列表      > 引用      [链接](网址)      ![图片](图片地址)
+
+选中一段文字再点上面的按钮，会直接给这段加格式。"></textarea>
+
+          <div v-show="cfTab==='preview'" class="result-box ed-preview" v-html="cfHtml"></div>
+
+          <div class="btn-row">
+            <button class="lg" @click="cfDistribute">🚀 一键分发到多平台</button>
+            <button class="ok" @click="cfSave">存进文章库</button>
+            <button class="ghost" @click="cfDetect">违禁词检测</button>
+            <button class="ghost" :disabled="coverLoading" @click="cfCover">{{ coverLoading ? '出图中…' : '🖼 生成配图' }}</button>
+            <button class="ghost" @click="copyMarkdown(cf)">复制 Markdown</button>
+            <button class="ghost" @click="copyRich(cf)">复制富文本</button>
+            <button class="gray" @click="cfClear">清空重写</button>
+          </div>
+          <div v-if="cfMatches.length" class="msg warn">
+            检出 {{ cfMatches.length }} 处违禁/敏感词：{{ cfMatches.map(m=>m.word).slice(0,12).join('、') }}
+          </div>
+          <div v-if="coverResult && coverResult.image_url" class="cover-wrap" style="margin-top:14px;">
+            <img class="cover-img" :src="coverResult.image_url" alt="配图" style="width:180px;" />
+            <div class="cover-side">
+              <div class="hint">配图已生成（存进文章库时会记到封面字段）</div>
+              <div class="btn-row">
+                <button class="ghost sm" @click="mdImage">↧ 插到正文</button>
+                <button class="ghost sm" @click="downloadImage(coverResult.image_url)">⬇ 下载</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>AI 帮改<span class="sub">挑一段不满意的，让 AI 重写</span></h3>
+          <div class="hint" style="margin-bottom:12px;">左边填「要改的内容」，留空就改整篇正文；右边写额外要求。改完点「替换到正文」覆盖回去。</div>
+          <div class="grid2">
+            <div><label>要改的内容（留空 = 整篇正文）</label>
+              <textarea v-model="cfSel" class="ed-area" style="min-height:150px;font-size:14px;" placeholder="把不满意的段落粘到这里"></textarea>
+            </div>
+            <div><label>额外要求（可选）</label>
+              <textarea v-model="cfAsk" class="ed-area" style="min-height:150px;font-size:14px;" placeholder="如：语气再口语一点、面向中小企业老板、补一个真实案例"></textarea>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button @click="cfAssist('polish')">润色通顺</button>
+            <button class="gray" @click="cfAssist('deai')">去 AI 味</button>
+            <button class="gray" @click="cfAssist('expand')">扩写</button>
+            <button class="gray" @click="cfAssist('shorten')">精简</button>
+            <button class="gray" @click="cfAssist('seo')">SEO 优化</button>
+            <button class="gray" @click="cfAssist('continue')">接着往下写</button>
+            <button class="gray" @click="cfAssist('title')">起标题</button>
+            <button class="gray" @click="cfAssist('outline')">出大纲</button>
+          </div>
+          <div v-if="cfAiBusy" class="msg info">AI 正在改，通常 5~20 秒…</div>
+          <div v-if="cfErr" class="msg err">{{ cfErr }}</div>
+          <div v-if="cfAiOut" class="result-box" style="margin-top:12px;max-height:340px;">{{ cfAiOut }}</div>
+          <div class="btn-row" v-if="cfAiOut">
+            <button class="sm" @click="cfApply">↧ 替换到正文</button>
+            <button class="gray sm" v-if="cfLastMode==='title'" @click="cfApplyTitle">用作标题</button>
+            <button class="ghost sm" @click="copyText(cfAiOut)">📋 复制结果</button>
+            <button class="ghost sm" @click="cfAiOut=''">丢弃</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ========== 一键分发 ========== -->
       <div v-if="view==='distribute'">
         <div class="page-head">
           <h2><span class="ico">🚀</span>一键分发</h2>
-          <p>选一篇稿子 → 勾选目标 → 一次铺到所有平台。能自动的（百度）直接发完；社媒按各平台规则自动改好标题、标签、格式，你「复制并打开」两步就发完</p>
+          <p>选一篇稿子 → 勾选目标 → 一次铺到所有平台。能自动的（自建站/百度）直接发完；社媒按各平台规则自动改好标题、标签、格式，你「复制并打开」一步就发完</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="bar"></span>关于「代发」：哪些能自动，哪些不行</h3>
+          <div class="grid2">
+            <div>
+              <div style="font-weight:600;margin-bottom:8px;">✅ 能全自动 —— 你什么都不用做</div>
+              <div class="hint" style="line-height:2.1;">
+                · <b>百度</b>：导出 SEO 静态页 + 主动推送（要先有自己的站和域名）<br>
+                · <b>你自己的网站</b>（WordPress 等支持官方 API 的）：直发，不经过第三方平台
+              </div>
+            </div>
+            <div>
+              <div style="font-weight:600;margin-bottom:8px;">✋ 只能半自动 —— 复制一下、粘贴一下</div>
+              <div class="hint" style="line-height:2.1;">
+                · 小红书 / 微博 / 抖音 / 知乎 / 公众号 …… <b>所有社媒平台</b><br>
+                · 原因：自动发＝拿你的 Cookie 模拟登录，违反平台规则，<b>账号会被封</b>。
+                这个风险不该替你担，所以这里只把稿子改到「粘上就能发」的程度。
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -1603,7 +1818,8 @@
         <div class="card">
           <h3><span class="bar"></span>分发队列
             <span class="sub">{{ distSummary.pending }} 条待发布 · {{ distSummary.done }} 条已完成</span>
-            <button class="danger sm" style="margin-left:14px;" @click="clearDist">清空记录</button>
+            <button class="gray sm" style="margin-left:14px;" v-if="distSummary.done" @click="purgeDistDone">清掉已完成</button>
+            <button class="danger sm" @click="clearDist">清空全部</button>
           </h3>
           <div v-if="distTasks.length" class="dist-tasks">
             <div v-for="t in distTasks" :key="t.id" class="dist-task" :class="'st-'+t.status">
@@ -1622,8 +1838,8 @@
               <div class="dt-url" v-if="t.url">{{ t.url }}</div>
               <div class="btn-row">
                 <template v-if="t.status!=='done' && t.kind==='semi'">
-                  <button class="sm" @click="distCopy(t)">📋 复制内容</button>
-                  <button class="gray sm" @click="distOpen(t)">🔗 打开发布页</button>
+                  <button class="sm" @click="distCopyOpen(t)">📋 复制并打开发布页</button>
+                  <button class="gray sm" @click="distCopy(t)">只复制</button>
                   <button class="ghost sm" @click="distDone(t)">✅ 标记已发布</button>
                 </template>
                 <template v-else-if="t.status==='failed' && t.kind==='auto'">
@@ -1633,6 +1849,7 @@
                   <button class="ghost sm" v-if="t.kind==='semi'" @click="distUndone(t)">撤销标记</button>
                   <a v-if="t.url" class="btn-link" :href="t.url" target="_blank" rel="noopener">查看结果</a>
                 </template>
+                <button class="danger sm" style="margin-left:auto;" @click="distRemove(t)">🗑 删除这条</button>
               </div>
             </div>
           </div>

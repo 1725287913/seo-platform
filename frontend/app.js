@@ -13,7 +13,7 @@ if (!window.Vue) {
   throw new Error('Vue 未加载：请确认 frontend/vendor/vue.global.prod.js 存在');
 }
 
-const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
+const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
 /* ============ 通用工具 ============ */
 function escapeHtml(s){
@@ -63,17 +63,31 @@ function renderContent(md, matches){
     const words = [...new Set(matches.map(m=>m.word))].sort((a,b)=>b.length-a.length);
     words.forEach(w=>{ const esc = escapeHtml(w); html = html.split(esc).join('<mark>'+esc+'</mark>'); });
   }
-  let out = '';
-  for(const line of html.split('\n')){
-    const t = line.trim();
-    if(t==='') continue;
-    if(t.startsWith('### ')) out += '<h3>'+t.slice(4)+'</h3>';
-    else if(t.startsWith('## ')) out += '<h2>'+t.slice(3)+'</h2>';
-    else if(t.startsWith('# ')) out += '<h1>'+t.slice(2)+'</h1>';
-    else if(/^[-*] /.test(t)) out += '<li>'+t.slice(2)+'</li>';
-    else if(t.startsWith('```')) continue;
-    else out += '<p>'+t+'</p>';
+  // 行内格式：在「已转义」的文本上做，所以不会出现注入
+  const inline = (s)=> s
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  let out = '', inList = false, inCode = false;
+  for(const raw of html.split('\n')){
+    const t = raw.trim();
+    if(t.startsWith('```')){ inCode = !inCode; out += inCode ? '<pre><code>' : '</code></pre>'; continue; }
+    if(inCode){ out += raw + '\n'; continue; }
+    if(t === ''){ if(inList){ out += '</ul>'; inList = false; } continue; }
+    if(t.startsWith('### ')) out += '<h3>'+inline(t.slice(4))+'</h3>';
+    else if(t.startsWith('## ')) out += '<h2>'+inline(t.slice(3))+'</h2>';
+    else if(t.startsWith('# ')) out += '<h1>'+inline(t.slice(2))+'</h1>';
+    else if(/^[-*] /.test(t)){
+      if(!inList){ out += '<ul>'; inList = true; }
+      out += '<li>'+inline(t.slice(2))+'</li>';
+    }
+    else if(t.startsWith('> ')) out += '<blockquote>'+inline(t.slice(2))+'</blockquote>';
+    else if(/^(-{3,}|\*{3,})$/.test(t)) out += '<hr>';
+    else out += '<p>'+inline(t)+'</p>';
   }
+  if(inList) out += '</ul>';
   return out;
 }
 
@@ -166,6 +180,7 @@ createApp({
       if(v==='products') loadProducts();
       if(v==='keys') loadProviders();
       if(v==='distribute'){ loadDistTargets(); loadDistTasks(); loadArticles(); }
+      if(v==='create'){ loadArticles(); }
     }
 
     /* ---------- 数据中心 ---------- */
@@ -363,6 +378,7 @@ createApp({
     const genModel = ref('');
     const matches = ref([]);
     const coverResult = ref(null);
+    const coverLoading = ref(false);   // 出图要十几秒，按钮得能显示进度
     const rendered = computed(()=> renderContent(genResult.value, matches.value));
     let lastSavedId = '';
 
@@ -497,11 +513,35 @@ createApp({
       matches.value = (await r.json()).matches || [];
       toast(matches.value.length ? `检出 ${matches.value.length} 处违禁词` : '未检出违禁词 ✅', matches.value.length?'err':'ok');
     }
+    // 出图十几秒，期间按钮显示「出图中…」，也让用户知道没卡死
     async function makeCover(){
-      const r = await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ keyword:keyword.value, platform:platform.value, article_text:genResult.value,
-          writing: {...wcfg} })});
-      coverResult.value = await r.json();
+      if(coverLoading.value) return;
+      coverLoading.value = true;
+      try{
+        const r = await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ keyword:keyword.value, platform:platform.value, article_text:genResult.value,
+            writing: {...wcfg} })});
+        coverResult.value = await r.json();
+        if(coverResult.value.image_url) toast('配图生成好了 ✅');
+        else toast(coverResult.value.note || '没出图，看提示词说明', 'err');
+      }catch(e){ toast('出图失败：'+e, 'err'); }
+      finally{ coverLoading.value = false; }
+    }
+    // 相对地址补成完整地址：复制给别人/粘到别的平台时必须是绝对 URL
+    const absUrl = (u)=> !u ? '' : (/^https?:/i.test(u) ? u : location.origin + u);
+    function downloadImage(u){
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = (u.split('/').pop() || 'cover.png').split('?')[0];
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      toast('已开始下载');
+    }
+    // 把配图插到正文末尾（Markdown 图片语法），导出 SEO 页时也会带上
+    function coverToBody(){
+      if(!genResult.value || !coverResult.value || !coverResult.value.image_url) return;
+      genResult.value = genResult.value.replace(/\s+$/, '')
+        + `\n\n![封面图](${absUrl(coverResult.value.image_url)})\n`;
+      toast('已插入正文末尾');
     }
     // 复制到剪贴板：优先 Clipboard API，不可用时退回 textarea + execCommand。
     // 注意 navigator.clipboard 只在 https 或 localhost 下存在，局域网 IP 访问时是没有的，
@@ -539,14 +579,40 @@ createApp({
         toast('浏览器不支持富文本复制，已退回纯文本', 'info');
       }
     }
-    async function saveArticle(){
+    // 把当前生成结果存进文章库（保存草稿 与 一键分发 共用这一段）
+    async function _saveGenArticle(){
       const title = (genResult.value.match(/^#\s+(.+)$/m)||[])[1] || keyword.value;
       const r = await fetch('/api/articles',{method:'POST',headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ title, content:genResult.value, keyword:keyword.value, platform:platform.value,
-          topic:topicSel.value, account:accSel.value, model:genModel.value, status:'generated' })});
+          topic:topicSel.value, account:accSel.value, model:genModel.value, status:'generated',
+          cover:(coverResult.value && coverResult.value.image_url) || '',
+          cover_prompt:(coverResult.value && coverResult.value.prompt) || '' })});
       const a = await r.json(); lastSavedId = a.id;
+      return a;
+    }
+    async function saveArticle(){
+      await _saveGenArticle();
       toast('已保存到文章库 ✅');
       loadArticles(); loadStats();
+    }
+    // 出稿后直接分发：先自动存一次（不用你手动点保存草稿），再带着这篇跳分发页
+    async function distFromDraft(){
+      if(!genResult.value){ toast('还没有内容', 'err'); return; }
+      const a = await _saveGenArticle();
+      toast('已存进文章库，正在带到分发页…');
+      await loadArticles(); loadStats();
+      await distFromArticle(a);
+    }
+    // 把生成结果端到「文章创作」页自己改（改完还能分发）
+    function genToCreate(){
+      if(!genResult.value){ toast('还没有内容', 'err'); return; }
+      cf.title = (genResult.value.match(/^#\s+(.+)$/m)||[])[1] || keyword.value;
+      cf.body = genResult.value;
+      cf.platform = platform.value;
+      cf.keyword = keyword.value;
+      cfTab.value = 'edit';
+      view.value = 'create';
+      toast('已带到「文章创作」，改完可直接分发');
     }
 
     /* ---------- 批量创作 ---------- */
@@ -1223,13 +1289,14 @@ createApp({
       finally{ distPreviewLoading.value = false; }
     }
 
-    // 复制内容 → 打开发布页：多数平台发布框支持直接粘贴，两步发完
+    // 复制并打开：大多数平台发布框能直接粘贴，一次点击就把这一步做完
     function distCopy(t){ copyText(t.copy_text || t.body || ''); }
-    function distOpen(t){
+    function distCopyOpen(t){
       distCopy(t);
       if(t.publish_url) window.open(t.publish_url, '_blank', 'noopener');
       else toast('这个平台没登记发布地址，去「多账号矩阵」补上主页链接', 'err');
     }
+    const distOpen = distCopyOpen;   // 旧名字保留，别的地方还在用
 
     async function distDone(t){
       try{
@@ -1259,6 +1326,24 @@ createApp({
       await loadDistTasks();
       toast('分发记录已清空');
     }
+    // 删掉队列里的某一条（原来只能整表清空，没法只去掉一条）
+    async function distRemove(t){
+      if(!confirm('把这条（'+(t.platform_name||'')+'）从队列删掉？')) return;
+      try{
+        const r = await fetch('/api/distribute/'+t.id, {method:'DELETE'});
+        const d = await r.json();
+        toast(d.ok ? '已删除这一条' : (d.message||'删除失败'), d.ok ? 'ok' : 'err');
+      }catch(e){ toast('删除失败：'+e, 'err'); }
+      await loadDistTasks(); loadStats();
+    }
+    async function purgeDistDone(){
+      try{
+        const r = await fetch('/api/distribute/purge-done', {method:'POST'});
+        const d = await r.json();
+        toast(`已清掉 ${d.removed || 0} 条已完成的`);
+      }catch(e){ toast('清理失败：'+e, 'err'); }
+      await loadDistTasks(); loadStats();
+    }
     function distStatusText(s){
       return { pending:'待发布', done:'已完成', failed:'失败' }[s] || s;
     }
@@ -1273,6 +1358,136 @@ createApp({
         .concat(distTargets.value.accounts.filter(x=>x.is_default).map(x=>x.id));
       view.value = 'distribute';
       loadDistTasks();
+    }
+
+    /* ---------- 文章创作（自己写 / 从别处粘贴 / 让 AI 帮改）----------
+       对标 ALQQ 的「文章创作」：标题 + 正文编辑器 + 工具栏 + 预览。
+       不用富文本编辑器（会引入一堆依赖，且富文本存进库还得转回 Markdown），
+       直接写 Markdown，预览就在旁边看效果。 */
+    const cf = reactive({ title:'', body:'', platform:'baidu', keyword:'' });
+    const cfTab = ref('edit');
+    const cfSel = ref('');
+    const cfAsk = ref('');
+    const cfAiOut = ref('');
+    const cfAiBusy = ref(false);
+    const cfErr = ref('');
+    const cfLastMode = ref('');
+    const cfMatches = ref([]);
+    const cfArea = ref(null);
+    const cfHtml = computed(()=> renderContent(cf.body, []));
+
+    // 在光标处插入格式标记（选中了文字就包住它）
+    function cfInsert(before, after, fallback){
+      const el = cfArea.value, t = cf.body || '';
+      if(!el){ cf.body = t + '\n' + before + (fallback||'') + after; return; }
+      const s = el.selectionStart ?? t.length, e = el.selectionEnd ?? t.length;
+      const sel = t.slice(s, e) || fallback || '';
+      cf.body = t.slice(0, s) + before + sel + after + t.slice(e);
+      nextTick(()=>{ el.focus(); const p = s + before.length + sel.length; el.setSelectionRange(p, p); });
+    }
+    const mdWrap = (b, a='')=> cfInsert(b, a, '');
+    // 行首前缀（列表 / 引用 / 编号）：加给光标所在行
+    function mdLine(prefix){
+      const el = cfArea.value, t = cf.body || '';
+      if(!el){ cf.body = prefix + t; return; }
+      const s = el.selectionStart ?? 0;
+      const ls = t.lastIndexOf('\n', s - 1) + 1;
+      cf.body = t.slice(0, ls) + prefix + t.slice(ls);
+      nextTick(()=>{ el.focus(); el.setSelectionRange(s + prefix.length, s + prefix.length); });
+    }
+    function mdLink(){
+      const u = prompt('链接地址（https://…）');
+      if(u) cfInsert('[', ']('+u+')', '链接文字');
+    }
+    function mdImage(){
+      const u = prompt('图片地址', (coverResult.value && coverResult.value.image_url) || '');
+      if(u) cfInsert('![', ']('+u+')', '图片说明');
+    }
+    const mdHr = ()=> cfInsert('\n---\n', '', '');
+    // Tab 键插两个空格（默认会跳走焦点，写文章时很烦）
+    function cfTabKey(e){
+      const el = e.target, s = el.selectionStart;
+      cf.body = cf.body.slice(0, s) + '  ' + cf.body.slice(el.selectionEnd);
+      nextTick(()=>{ el.setSelectionRange(s + 2, s + 2); });
+    }
+
+    async function cfSave(){
+      const body = (cf.body||'').trim();
+      if(!body && !(cf.title||'').trim()){ toast('标题和正文都还是空的', 'err'); return null; }
+      const title = (cf.title||'').trim() || (cf.body.match(/^#\s+(.+)$/m)||[])[1] || '未命名文章';
+      try{
+        const r = await fetch('/api/articles',{method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ title, content:cf.body, keyword:cf.keyword, platform:cf.platform,
+            status:'draft', cover:(coverResult.value && coverResult.value.image_url) || '' })});
+        const a = await r.json();
+        toast('已存进文章库 ✅');
+        loadArticles(); loadStats();
+        return a;
+      }catch(e){ toast('保存失败：'+e, 'err'); return null; }
+    }
+    // 存一份再跳分发页（分发要有文章 id，所以这一步是必须的，但用户不用自己点）
+    async function cfDistribute(){
+      if(!(cf.body||'').trim()){ toast('正文还是空的，先写点内容', 'err'); return; }
+      const a = await cfSave();
+      if(a && a.id) await distFromArticle(a);
+    }
+    async function cfDetect(){
+      if(!(cf.body||'').trim()){ toast('正文还是空的', 'err'); return; }
+      const r = await fetch('/api/check',{method:'POST',headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ text:cf.body, platform:cf.platform })});
+      cfMatches.value = (await r.json()).matches || [];
+      toast(cfMatches.value.length ? `检出 ${cfMatches.value.length} 处违禁词`
+                                   : '未检出违禁词 ✅', cfMatches.value.length ? 'err' : 'ok');
+    }
+    async function cfCover(){
+      const kw = (cf.keyword||'').trim() || (cf.title||'').trim();
+      if(!kw){ toast('先写个标题或关键词，配图才有依据', 'err'); return; }
+      if(coverLoading.value) return;
+      coverLoading.value = true;
+      try{
+        const r = await fetch('/api/images',{method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ keyword:kw, platform:cf.platform,
+            article_text:cf.body, writing:{...wcfg} })});
+        coverResult.value = await r.json();
+        if(coverResult.value.image_url) toast('配图生成好了 ✅');
+        else toast(coverResult.value.note || '没出图', 'err');
+      }catch(e){ toast('出图失败：'+e, 'err'); }
+      finally{ coverLoading.value = false; }
+    }
+    function cfClear(){
+      if(!confirm('清空当前内容重写？没存进文章库的内容会丢。')) return;
+      cf.title=''; cf.body=''; cf.keyword=''; cfAiOut=''; cfMatches.value=[];
+    }
+    // 让 AI 改一段或整篇。cfSel 有内容就只改那段
+    async function cfAssist(mode){
+      const text = (cfSel.value||'').trim() || (cf.body||'').trim();
+      if(!text){ toast('把要改的段落填进来，或先在正文里写点内容', 'err'); return; }
+      cfAiBusy.value = true; cfErr.value=''; cfLastMode.value = mode; cfAiOut.value='';
+      try{
+        const r = await fetch('/api/assist',{method:'POST',headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ text, mode, instruction:cfAsk.value })});
+        const d = await r.json();
+        if(d.error) cfErr.value = d.message || 'AI 处理失败，去「API 密钥」检查模型';
+        else if(!(d.content||'').trim()) cfErr.value = '模型返回了空内容，换个模型或再试一次';
+        else cfAiOut.value = d.content;
+      }catch(e){ cfErr.value = '请求失败：'+e; }
+      finally{ cfAiBusy.value = false; }
+    }
+    function cfApply(){
+      if(!cfAiOut.value) return;
+      if((cfSel.value||'').trim() && cf.body.includes(cfSel.value)){
+        cf.body = cf.body.replace(cfSel.value, cfAiOut.value);   // 只换选中的那段
+      }else{
+        cf.body = cfAiOut.value;                                  // 否则整篇替换
+      }
+      cfAiOut.value=''; cfSel.value=''; cfErr.value='';
+      cfTab.value = 'edit';
+      toast('已替换进正文');
+    }
+    function cfApplyTitle(){
+      if(!cfAiOut.value) return;
+      cf.title = cfAiOut.value.split('\n')[0].replace(/^[#\d.、)（\s]+/, '').trim();
+      cfAiOut.value=''; toast('标题已更新');
     }
 
     /* ---------- 初始化 ---------- */
@@ -1296,7 +1511,8 @@ createApp({
       distArticle, distArticleChars, distGroups, distPickedPlatforms,
       loadDistTargets, loadDistTasks, distPickAll, distPickNone, distPickGroup,
       runDistribute, distPreview, distPreviewOpen, distPreviewData, distPreviewLoading,
-      distCopy, distOpen, distDone, distUndone, distRetry, clearDist, distStatusText,
+      distCopy, distOpen, distCopyOpen, distDone, distUndone, distRetry, clearDist,
+      distRemove, purgeDistDone, distStatusText,
       distFromArticle,
       // 写作台
       writeStep, aiReady,
@@ -1306,7 +1522,12 @@ createApp({
       readiness, rdLoading, loadReadiness, rdMark,
       trashOpen, trashList, openTrash, loadTrash, restoreArticle, purgeTrash,
       keyword, topicSel, realData, genResult, genError, genLoading, genModel, matches, rendered,
-      coverResult, generate, detect, makeCover, copyMarkdown, copyRich, copyText, saveArticle,
+      coverResult, coverLoading, generate, detect, makeCover, copyMarkdown, copyRich, copyText, saveArticle,
+      absUrl, downloadImage, coverToBody, distFromDraft, genToCreate,
+      // 文章创作（自己写）
+      cf, cfTab, cfSel, cfAsk, cfAiOut, cfAiBusy, cfErr, cfLastMode, cfMatches, cfArea, cfHtml,
+      mdWrap, mdLine, mdLink, mdImage, mdHr, cfTabKey,
+      cfSave, cfDistribute, cfDetect, cfCover, cfClear, cfAssist, cfApply, cfApplyTitle,
       selModel, modelList, tplSel, tplListForPlatform, tplListAll, accSel, personaListForPlatform,
       topics, snippets, snipSel, insertSnip,
       // 批量

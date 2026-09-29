@@ -91,7 +91,7 @@ if kw_id:
     check("关键词", "改关键词", "PUT", f"/api/keywords/{kw_id}", {"status": "used", "keyword": TAG + "改"})
     check("关键词", "删关键词", "DELETE", f"/api/keywords/{kw_id}")
 check("关键词", "长尾词扩展 /api/keywords/expand", "POST", "/api/keywords/expand",
-      {"seed": "南京保洁"}, timeout=60)
+      {"seed": "南京保洁"}, timeout=180)   # 免费模型（glm-4.5-flash）实测要 45s 左右，别设 60s
 
 prod = check("产品库", "新增产品", "POST", "/api/products",
              {"name": TAG + "保洁套餐", "category": "服务", "selling_points": "3小时深度保洁,自带设备",
@@ -135,7 +135,7 @@ top = check("选题", "新增选题", "POST", "/api/topics", {"keyword": TAG + "
 if (top or {}).get("id"):
     check("选题", "选题列表", "GET", "/api/topics")
     check("选题", "删选题", "DELETE", f"/api/topics/{top['id']}")
-check("选题", "选题推荐 /api/topics/recommend", "POST", "/api/topics/recommend", {"seed": "保洁"}, timeout=60)
+check("选题", "选题推荐 /api/topics/recommend", "POST", "/api/topics/recommend", {"seed": "保洁"}, timeout=120)
 
 acc = check("账号", "新增账号", "POST", "/api/accounts", {"name": TAG + "账号", "platform": "baidu"})
 if (acc or {}).get("id"):
@@ -211,7 +211,10 @@ if arts:
     art_id = arts[0].get("id")
     print(f"     ↳ 现有 {len(arts)} 篇，取第一篇测导出（不删你的文章）")
 if art_id:
+    _orig_status = arts[0].get("status") or "generated"
     check("文章", "文章状态修改", "POST", f"/api/articles/{art_id}/status", {"status": "checked"})
+    # 改完立刻改回去：别把用户的文章状态留在测试值上
+    call("POST", f"/api/articles/{art_id}/status", {"status": _orig_status})
     exp = check("文章", "导出 SEO 静态页", "POST", f"/api/articles/{art_id}/export",
                 {"site": site or "test.example.com"}, expect=has_key("url"))
     print(f"     ↳ 生成 HTML：{(exp or {}).get('file')}")
@@ -243,6 +246,35 @@ if WITH_AI:
         print(f"     {'✅' if s.get('ok') else '⚠️ '} {s.get('name')}：{s.get('detail')}")
 else:
     print("  ⏭ 跳过（加 --ai 参数才会测）")
+
+# ---------- ⑧ 一键分发 / 配图 / AI 助手 ----------
+print("\n【⑧ 一键分发与配图】")
+check("分发", "可分发目标 /api/distribute/targets", "GET", "/api/distribute/targets",
+      expect=lambda d: isinstance(d.get("auto"), list))
+check("分发", "分发队列 /api/distribute/tasks", "GET", "/api/distribute/tasks",
+      expect=has_key("summary"))
+check("配图", "已生成配图列表 /api/images/list", "GET", "/api/images/list",
+      expect=lambda d: isinstance(d.get("images"), list))
+check("配图", "AI 助手模式 /api/assist/modes", "GET", "/api/assist/modes",
+      expect=lambda d: len(d.get("modes", [])) >= 5)
+
+# 真跑一次分发再删掉，验证「队列可单条删除」这条新功能。
+# 用测试用的文章 + 测试账号，**只删自己建的 id**，绝不动用户已有条目。
+if art_id:
+    tacc = check("分发", "建测试账号", "POST", "/api/accounts",
+                 {"platform": "xiaohongshu", "name": TAG + "分发自测号"}, expect=has_key("id"))
+    tacc_id = (tacc or {}).get("id")
+    if tacc_id:
+        run = check("分发", "一键分发 /api/distribute", "POST", "/api/distribute",
+                    {"article_id": art_id, "targets": ["acct:" + tacc_id], "extra_tags": "测试"},
+                    timeout=120)
+        tks = (run or {}).get("tasks") or []
+        if tks:
+            print(f"     ↳ 生成 {len(tks)} 条，平台适配后标题：{tks[0].get('title')}")
+            check("分发", "删单条 /api/distribute/{id}", "DELETE", f"/api/distribute/{tks[0]['id']}",
+                  expect=lambda d: d.get("ok") is True)
+        check("分发", "清理已完成 /api/distribute/purge-done", "POST", "/api/distribute/purge-done")
+        check("分发", "删测试账号", "DELETE", f"/api/accounts/{tacc_id}")
 
 # ---------- 汇总 ----------
 print("\n" + "=" * 64)
