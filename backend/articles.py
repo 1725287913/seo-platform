@@ -158,7 +158,7 @@ def to_seo_html(article: dict, site: str):
         "headline": title,
         "description": summary,
         "datePublished": date,
-        "author": {"@type": "Person", "name": "SEO矩阵平台"},
+        "author": {"@type": "Person", "name": "AI 内容中台"},
     }
     # 转义双引号，防止破坏 HTML 属性
     esc = lambda s: str(s).replace('"', "&quot;")

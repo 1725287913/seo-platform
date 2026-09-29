@@ -40,7 +40,7 @@ import presets
 import readiness
 import access
 
-app = FastAPI(title="SEO 矩阵平台（对标 ALPP · 百度全量测试中）")
+app = FastAPI(title="AI 内容中台（百度全量测试中）")
 
 app.add_middleware(
     CORSMiddleware,

@@ -11,6 +11,8 @@ backend/.env
 .env.local
 *.env.local
 # 线上版的访问密码：本地创建、随部署上传，但不进 GitHub
+# 注意是 gate.txt（原名 access.txt，改名原因见 backend/access.py 顶部注释）
+backend/gate.txt
 backend/access.txt
 
 # ---------- ② 运行时数据（你写出来的文章、关键词等）----------

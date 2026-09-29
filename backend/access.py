@@ -1,22 +1,30 @@
 # access.py
 # 访问门禁：给线上版加一道密码锁，避免链接被转发后陌生人进来乱用
-# 开关规则：存在 backend/access.txt（或设了 ACCESS_PASSWORD 环境变量）才启用门禁；
+# 开关规则：存在 backend/gate.txt（或设了 ACCESS_PASSWORD 环境变量）才启用门禁；
 #          本地没有这个文件 = 完全不拦截，开发时不用输密码。
+#
+# 为什么不叫 access.txt：这个文件曾经叫 access.txt，后来要「取消密码」时发现
+# 删掉本地文件没用 —— 部署只同步/新增文件，不会删除服务端多出来的文件，
+# 于是云端的 access.txt 一直留着、门禁关不掉。改成新文件名后，那个旧文件就彻底失效了。
 import hmac
 import hashlib
 import os
 
 from fastapi import Body, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PASS_FILE = os.path.join(BASE_DIR, "access.txt")
+PASS_FILE = os.path.join(BASE_DIR, "gate.txt")
 COOKIE = "seo_gate"
 LOGIN_API = "/api/gate/login"
 STATUS_API = "/api/gate/status"
 FREE_PATHS = {LOGIN_API, STATUS_API, "/robots.txt", "/favicon.ico"}
 COOKIE_MAX_AGE = 30 * 24 * 3600  # 30 天免登录
+# 静态资源后缀：未登录取这些文件时绝不能返回登录页 HTML，
+# 否则浏览器会因 MIME 类型不是 JS/CSS 而拒绝执行，表现为整页不挂载（满屏 {{ }}）
+ASSET_EXT = (".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+             ".webp", ".ico", ".woff", ".woff2", ".ttf", ".otf")
 
 
 def _password() -> str:
@@ -145,10 +153,14 @@ class GateMiddleware(BaseHTTPMiddleware):
         if not enabled() or request.url.path in FREE_PATHS or _passed(request):
             return stamp(await call_next(request))
 
-        if request.url.path.startswith("/api/"):
+        path = request.url.path
+        if path.startswith("/api/"):
             return stamp(JSONResponse(
                 {"error": "unauthorized", "message": "需要访问密码，请刷新页面后重新登录"},
                 status_code=401))
+        # 静态资源返回 401 纯文本，绝不能塞登录页 HTML（否则脚本被浏览器拒执行）
+        if path.lower().endswith(ASSET_EXT):
+            return stamp(PlainTextResponse("401 unauthorized: 需要访问密码", status_code=401))
         return stamp(HTMLResponse(LOGIN_PAGE))
 
 

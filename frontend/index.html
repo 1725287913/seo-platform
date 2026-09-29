@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SEO 矩阵平台 · 多平台内容自动化</title>
+<title>AI 内容中台 · 多平台内容自动化</title>
 <script>
   // 主题提前应用：在 Vue 启动前就把 html 的 data-theme 定下来，避免深色模式下闪白
   (function () {
@@ -14,7 +14,14 @@
     } catch (e) { /* 隐私模式下 localStorage 不可用，忽略 */ }
   })();
 </script>
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<!-- Vue 3 自托管：放项目内，不依赖外网 CDN（unpkg/jsdelivr 国内经常连不上，会导致整页白屏） -->
+<script src="/vendor/vue.global.prod.js"></script>
+<script>
+  // 兜底：本地文件万一缺失（比如拷贝时漏了），再试一次公共 CDN
+  if (!window.Vue) {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"><\/script>');
+  }
+</script>
 <style>
   /* ============ 主题变量 · 浅色（默认）============ */
   :root{
@@ -325,8 +332,8 @@
   <!-- ============ 侧栏 ============ -->
   <aside class="sidebar">
     <div class="logo">
-      <div class="logo-mark">S</div>
-      <div class="logo-txt">SEO 矩阵<small>多平台内容 · 自动化流水线</small></div>
+      <div class="logo-mark">AI</div>
+      <div class="logo-txt">AI 内容中台<small>多平台内容 · 自动化流水线</small></div>
     </div>
 
     <div class="nav-item" :class="{active:view==='dashboard'}" @click="go('dashboard')"><span class="nav-icon">📊</span>仪表盘</div>

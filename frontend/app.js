@@ -1,4 +1,18 @@
-// app.js —— SEO 矩阵平台前端逻辑（Vue 3 CDN，单文件应用）
+// app.js —— AI 内容中台前端逻辑（Vue 3 自托管，单文件应用）
+
+// Vue 没加载成功时给一句人话提示，否则整页只会露出一堆 {{ }} 让人摸不着头脑
+if (!window.Vue) {
+  document.documentElement.innerHTML =
+    '<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;'
+    + 'font:15px/1.9 system-ui,-apple-system,\'Microsoft YaHei\',sans-serif;background:#f5f6fa;color:#1f2333">'
+    + '<div style="max-width:460px;padding:28px 30px;background:#fff;border:1px solid #e6e8f0;border-radius:14px">'
+    + '<div style="font-size:17px;font-weight:600;margin-bottom:10px">页面框架没加载成功</div>'
+    + '<div style="color:#5c6178">Vue 运行库没取到，请确认 <code style="background:#f0f1f6;padding:1px 6px;border-radius:4px">'
+    + 'frontend/vendor/vue.global.prod.js</code> 这个文件存在（它在项目里，不用联网）。'
+    + '刷新一次通常就能恢复。</div></div></body>';
+  throw new Error('Vue 未加载：请确认 frontend/vendor/vue.global.prod.js 存在');
+}
+
 const { createApp, ref, reactive, computed, onMounted, watch } = Vue;
 
 /* ============ 通用工具 ============ */

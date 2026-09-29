@@ -97,7 +97,7 @@ def test_hook(hid: str):
         return {"ok": False, "message": "该地址不存在"}
     try:
         r = httpx.post(h["url"], json={"event": "test", "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-                                       "data": {"message": "来自 SEO 矩阵平台的测试"}}, timeout=15)
+                                       "data": {"message": "来自 AI 内容中台的测试"}}, timeout=15)
         return {"ok": r.status_code < 400, "message": f"HTTP {r.status_code}"}
     except Exception as e:
         return {"ok": False, "message": str(e)}
